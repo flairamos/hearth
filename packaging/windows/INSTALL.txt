@@ -13,6 +13,7 @@ Hearth —「炉边」：让本地大模型常暖常驻的终端工作台。
 
 【双击启动】
 - 双击 run-tui.cmd  → 自动打开 Windows Terminal（或 cmd）并启动界面
+- 双击 run-web.cmd  → 浏览器 GUI（localhost:8787，浏览器自动打开）
 - 双击 run-agent.cmd → 打开终端并进入 agent 用法提示
 - 直接双击 hearth.exe 也可以，但报错时窗口会立即关闭；
   报错时建议用上面的 .cmd 方式启动，窗口会保留错误信息

@@ -12,8 +12,11 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 # Single source of truth: internal/version/version.go
 $VersionFile = Join-Path $Root "internal\version\version.go"
-$Version = (Select-String -Path $VersionFile -Pattern 'const Version = "([^"]+)"').Matches[0].Groups[1].Value
+$Version = (Select-String -Path $VersionFile -Pattern 'Version = "([^"]+)"').Matches[0].Groups[1].Value
 if (-not $Version) { throw "cannot read version from internal\version\version.go" }
+$GitTag = git describe --tags --abbrev=0 2>$null
+if ($GitTag) { $Version = $GitTag -replace '^v', '' }
+$LdFlags = "-s -w -X hearth/internal/version.Version=$Version"
 $Dist = Join-Path $Root "dist" | Join-Path -ChildPath $Version
 
 if (Get-Command go -ErrorAction SilentlyContinue) {
@@ -46,11 +49,11 @@ try {
 
         # hearth (TUI stack; CGO off keeps the build static)
         $env:CGO_ENABLED = "0"
-        & $Go build -trimpath -ldflags "-s -w" -o "$Dist\hearth_${suffix}$($t.Ext)" ./cmd/hearth
+        & $Go build -trimpath -ldflags $LdFlags -o "$Dist\hearth_${suffix}$($t.Ext)" ./cmd/hearth
         if ($LASTEXITCODE -ne 0) { throw "build hearth failed for $suffix" }
 
         # hearth-agent (headless, no TUI deps)
-        & $Go build -trimpath -ldflags "-s -w" -o "$Dist\hearth-agent_${suffix}$($t.Ext)" ./cmd/hearth-agent
+        & $Go build -trimpath -ldflags $LdFlags -o "$Dist\hearth-agent_${suffix}$($t.Ext)" ./cmd/hearth-agent
         if ($LASTEXITCODE -ne 0) { throw "build hearth-agent failed for $suffix" }
 
         # archive (zip native on Windows; tar.gz elsewhere)

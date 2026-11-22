@@ -34,11 +34,12 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          LDFLAGS="-s -w -X hearth/internal/version.Version=$VERSION"
           SUFFIX="${{ matrix.goos }}_${{ matrix.goarch }}"
           mkdir -p dist
-          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+          CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" \
             -o "dist/hearth_${SUFFIX}${{ matrix.ext }}" ./cmd/hearth
-          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+          CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" \
             -o "dist/hearth-agent_${SUFFIX}${{ matrix.ext }}" ./cmd/hearth-agent
       - name: Package (zip)
         if: matrix.archive == 'zip'

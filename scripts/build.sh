@@ -4,9 +4,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Single source of truth: internal/version/version.go
-VERSION="$(sed -n 's/.*const Version = "\(.*\)"/\1/p' "$ROOT/internal/version/version.go")"
-[ -n "$VERSION" ] || { echo "cannot read version from internal/version" >&2; exit 1; }
+# Version: git tag wins (release builds match the tag exactly); fallback
+# is internal/version (dev builds).
+VERSION="$(git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')"
+[ -n "$VERSION" ] || VERSION="$(sed -n 's/.*Version = "\(.*\)"/\1/p' "$ROOT/internal/version/version.go")"
+[ -n "$VERSION" ] || { echo "cannot determine version" >&2; exit 1; }
+LDFLAGS="-s -w -X hearth/internal/version.Version=$VERSION"
 DIST="$ROOT/dist/$VERSION"
 mkdir -p "$DIST"
 cd "$ROOT"
@@ -20,9 +23,9 @@ TARGETS=(
 
 for t in "${TARGETS[@]}"; do
   set -- $t
-  GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+  GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" \
     -o "$DIST/hearth_${1}_${2}" ./cmd/hearth
-  GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+  GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" \
     -o "$DIST/hearth-agent_${1}_${2}" ./cmd/hearth-agent
   tar -czf "$DIST/hearth_${1}_${2}.tar.gz" -C "$DIST" \
     "hearth_${1}_${2}" "hearth-agent_${1}_${2}"
