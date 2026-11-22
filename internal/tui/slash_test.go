@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -306,5 +308,34 @@ func TestQuitExitsProgram(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		p.Quit()
 		t.Fatal("program did not exit within 5s of /quit")
+	}
+}
+
+// TestFileRefSeededAt verifies the opencode-style @ flow: typing @ seeds the
+// character into the input AND opens the picker; selecting a file completes
+// it to @path without duplicating the @.
+func TestFileRefSeededAt(t *testing.T) {
+	a := newSlashApp(t)
+	a.workDir = t.TempDir()
+	if err := os.WriteFile(filepath.Join(a.workDir, "notes.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("@")})
+	if a.panel != panelFile {
+		t.Fatalf("@ did not open the file picker (panel=%v)", a.panel)
+	}
+	if got := a.ta.Value(); got != "@" {
+		t.Fatalf("@ not seeded into the input: %q", got)
+	}
+
+	// enter selects the first file → completes to @path (single @)
+	a.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	got := a.ta.Value()
+	if !strings.HasPrefix(got, "@notes.txt ") {
+		t.Fatalf("selection did not complete @: %q", got)
+	}
+	if strings.Count(got, "@") != 1 {
+		t.Fatalf("duplicated @: %q", got)
 	}
 }

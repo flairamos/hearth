@@ -11,6 +11,19 @@ Hearth 是运行在终端里的本地大模型工作台：交互式对话 + 无�
 | `hearth` | 交互式 TUI：对话、会话、`@`引用、agent 模式（审批 UI）、多模态、性能仪表 | ~21MB |
 | `hearth-agent` | 无头自动化：`agent` / `ask` / `models`，脚本与 CI 友好，**零 TUI 依赖** | ~11MB |
 
+## 界面预览
+
+| | |
+|---|---|
+| ![Agent 任务执行](docs/task.png) | ![命令面板](docs/command.png) |
+| **Agent 任务执行** — 工具调用 · 审批 · 13 工具 | **命令面板**（Ctrl+K） |
+| ![@ 文件引用](docs/file_ref.png) | ![会话管理](docs/sessions.png) |
+| **@ 文件引用** — 行号注入上下文 | **会话管理**（Ctrl+P · d 删除 · r 重命名） |
+| ![多模态识图](docs/img.png) | ![内容检索](docs/find_line.png) |
+| **多模态**（/img 图片理解） | **内容检索**（grep 精确到行） |
+| ![配置编辑](docs/config.png) | ![文件任务](docs/filetask.png) |
+| **配置**（/config 热重载） | **文件任务**（agent 读写实测） |
+
 ## 双 API 风格（多后端自动识别）
 
 同一个客户端支持两种 API 风格，`api_style: "auto"` 按 URL 自动识别；**配置地址失效时自动探测常见本地端口**（Ollama :11434 / LM Studio :1234 / llama.cpp :8080 / vLLM :8000 / Jan :1337），找到后写回配置：

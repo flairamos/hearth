@@ -158,7 +158,10 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// @ opens the file picker (local-agent/opencode style)
 	if key == "@" {
+		// seed the "@" into the input (opencode style) — selecting a file
+		// then completes it to @path; esc leaves the bare @ for editing
 		a.openFilePanel()
+		a.ta.InsertString("@")
 		return a, nil
 	}
 
@@ -369,11 +372,14 @@ func (a *App) listKey(msg tea.KeyMsg, key string) (tea.Model, tea.Cmd) {
 				}
 			}
 		case panelFile:
-			if path, ok := it.data.(string); ok {
-				// insert "@path " at the cursor for further editing (#range)
-				a.ta.InsertString("@" + path + " ")
-				a.toastf("attached %s — append #L121-135 for a line range", path)
-			}
+				if path, ok := it.data.(string); ok {
+					// complete the seeded "@" into "@path " — a trailing bare
+					// @ (the picker trigger) is replaced, not duplicated
+					base := strings.TrimSuffix(a.ta.Value(), "@")
+					a.ta.SetValue(base + "@" + path + " ")
+					a.ta.CursorEnd()
+					a.toastf("attached %s — append #L121-135 for a line range", path)
+				}
 		}
 		a.refreshContent()
 		return a, nil

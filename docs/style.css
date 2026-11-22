@@ -242,3 +242,8 @@ footer .fire { color: var(--ember); }
 .toc a:hover { color: var(--ember2); text-decoration: none; }
 
 .note { color: var(--dim); font-size: 13.5px; margin-top: -6px; }
+
+.shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.shots figure { margin: 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.shots img { width: 100%; display: block; }
+.shots figcaption { padding: 8px 12px; color: var(--dim); font-size: 13.5px; border-top: 1px solid var(--border); }
