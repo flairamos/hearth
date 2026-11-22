@@ -13,7 +13,7 @@ import (
 	"hearth/internal/provider"
 )
 
-// exportMarkdown renders a session as a Markdown file.
+// ExportMarkdown renders a session as a Markdown file.
 func ExportMarkdown(sess *core.Session) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", sess.Title)

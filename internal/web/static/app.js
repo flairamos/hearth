@@ -147,6 +147,9 @@ function startEvents() {
       case "notice":
         addMsg("notice", ev.text);
         break;
+      case "export":
+        window.open("/api/export", "_blank");
+        break;
       case "stats":
         $("metrics").textContent =
           `ctx ${(ev.ctxUsed / 1000).toFixed(1)}k/${ev.ctxMax} ${ev.pct}%` +

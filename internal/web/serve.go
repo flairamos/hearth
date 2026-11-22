@@ -326,8 +326,17 @@ func (s *Server) runWebCommand(text string) bool {
 		}
 		s.setTitle(rest)
 		notice("title → %s", rest)
+	case "retry":
+		if err := s.retryTurn(); err != nil {
+			notice("%v", err)
+		}
+	case "save", "export":
+		s.broadcastEvent("export", "", map[string]any{"trigger": true})
+		notice("export started — check your downloads")
+	case "img":
+		notice("web: use the 📷 button beside the input to attach an image")
 	case "help":
-		notice("commands: /new /clear /compact /model /provider /system /temp /ctx /think /agent /title /help")
+		notice("commands: /new /clear /compact /retry /model /provider /system /temp /ctx /think /agent /title /save /help")
 	default:
 		notice("unknown command: /%s — type /help", name)
 	}
