@@ -42,6 +42,13 @@ async function loadSessions() {
   }
 }
 
+async function renderFromState() {
+  const st = await (await fetch("/api/state")).json();
+  sessionId = st.sessionID;
+  renderMessages(st.messages);
+  scrollBottom();
+}
+
 async function loadSession(id) {
   const st = await (await fetch("/api/session/load?id=" + encodeURIComponent(id), { method: "POST" })).json();
   sessionId = st.sessionID;
@@ -84,23 +91,31 @@ function startEvents() {
         live = addMsg("assistant", "");
         live.querySelector(".body").classList.add("cursor-live");
         break;
-      case "thinking": {
+      case "thinking":
+      case "delta": {
         if (!live) live = addMsg("assistant", "");
         const body = live.querySelector(".body");
+        // two stable children: thinking accumulates separately so content
+        // deltas never wipe it (and vice versa)
         let th = body.querySelector(".thinking");
+        let ct = body.querySelector(".content");
         if (!th) {
           th = document.createElement("div");
           th.className = "thinking";
           body.appendChild(th);
         }
-        th.textContent += ev.text; // accumulate — deltas arrive token by token
-        scrollBottom();
-        break;
-      }
-      case "delta": {
-        if (!live) live = addMsg("assistant", "");
-        const body = live.querySelector(".body");
-        body.innerHTML = md(live._text = (live._text || "") + ev.text);
+        if (!ct) {
+          ct = document.createElement("div");
+          ct.className = "content";
+          body.appendChild(ct);
+        }
+        if (ev.type === "thinking") {
+          live._think = (live._think || "") + ev.text;
+          th.textContent = live._think;
+        } else {
+          live._text = (live._text || "") + ev.text;
+          ct.innerHTML = md(live._text);
+        }
         body.classList.add("cursor-live");
         scrollBottom();
         break;
@@ -154,6 +169,9 @@ function startEvents() {
         busy = false;
         setBusyUI(false);
         loadSessions();
+        // the assembled session message is the source of truth — re-render
+        // (covers page reloads mid-turn and interrupted partials)
+        try { renderFromState(); } catch (_) {}
         updateInfo();
         break;
     }
@@ -304,6 +322,7 @@ $("input").addEventListener("keydown", (e) => {
     }
     if (e.key === "Enter" || e.key === "Tab") {
       e.preventDefault();
+      if (pickItems.length === 0) { hidePicker(); send(); return; } // unmatched command → let the server respond
       completePick();
       return;
     }

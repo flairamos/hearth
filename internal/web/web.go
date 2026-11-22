@@ -270,22 +270,34 @@ func (s *Server) runChatTurn(ctx context.Context, gen *webGen, sess *core.Sessio
 	var content, thinking strings.Builder
 	var outTok int
 	var truncated bool
-	err := client.ChatStream(ctx, req, func(r ollama.ChatResponse) error {
-		if r.Message.Thinking != "" {
-			thinking.WriteString(r.Message.Thinking)
-			s.broadcastEvent("thinking", r.Message.Thinking, nil)
-		}
-		if r.Message.Content != "" {
-			content.WriteString(r.Message.Content)
-			gen.addTok(core.EstimateTokens(r.Message.Content))
-			s.broadcastEvent("delta", r.Message.Content, nil)
-		}
-		if r.Done {
-			outTok = r.EvalCount
-			truncated = r.DoneReason == "length"
-		}
-		return nil
-	})
+	doStream := func(req ollama.ChatRequest) error {
+		return client.ChatStream(ctx, req, func(r ollama.ChatResponse) error {
+			if r.Message.Thinking != "" {
+				thinking.WriteString(r.Message.Thinking)
+				s.broadcastEvent("thinking", r.Message.Thinking, nil)
+			}
+			if r.Message.Content != "" {
+				content.WriteString(r.Message.Content)
+				gen.addTok(core.EstimateTokens(r.Message.Content))
+				s.broadcastEvent("delta", r.Message.Content, nil)
+			}
+			if r.Done {
+				outTok = r.EvalCount
+				truncated = r.DoneReason == "length"
+			}
+			return nil
+		})
+	}
+	err := doStream(req)
+	// model without thinking support → retry once without the flag (parity
+	// with the agent's streamTurn fallback)
+	if err != nil && req.Think != nil && strings.Contains(err.Error(), "does not support thinking") {
+		content.Reset()
+		thinking.Reset()
+		truncated = false
+		req.Think = nil
+		err = doStream(req)
+	}
 	interrupted := err != nil && ctx.Err() != nil
 	if strings.TrimSpace(content.String()) != "" || strings.TrimSpace(thinking.String()) != "" {
 		sess.Add(core.Message{

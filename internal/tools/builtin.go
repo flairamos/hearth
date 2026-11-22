@@ -233,7 +233,7 @@ func globWalk(base, pattern string, fn func(string)) error {
 		}
 		seen++
 		if idx == len(segs) {
-			fn(mustRel(base, dir))
+			fn(filepath.ToSlash(mustRel(base, dir)))
 			return nil
 		}
 		seg := segs[idx]
@@ -264,7 +264,7 @@ func globWalk(base, pattern string, fn func(string)) error {
 				p := filepath.Join(dir, e.Name())
 				if idx == len(segs)-1 || e.IsDir() {
 					if idx == len(segs)-1 {
-						fn(mustRel(base, p))
+						fn(filepath.ToSlash(mustRel(base, p)))
 					} else if e.IsDir() {
 						if err := walk(p, idx+1); err != nil {
 							return err

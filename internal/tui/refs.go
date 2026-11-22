@@ -90,8 +90,8 @@ func CollectRefs(text, workDir string) ([]core.FileRef, []string) {
 	return refs, missing
 }
 
-// refContextBlock renders one file ref as model context.
-// RefContextBlock delegates to core (shared with the agent + web layers).
+// RefContextBlock delegates to core: it renders one file ref as model
+// context, shared with the agent and web layers.
 func RefContextBlock(r core.FileRef) string { return core.RefContextBlock(r) }
 
 func readRefFile(path string, start, end, maxChars int) (string, error) {

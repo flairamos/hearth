@@ -66,3 +66,6 @@ body { background: var(--bg); color: var(--text); font: 14px/1.55 "Cascadia Code
 .pick.sel { background: var(--bg2); color: var(--ember2); }
 .pick .dim { font-size: 12px; }
 .msg.notice { color: var(--dim); font-size: 13px; }
+
+.msg.assistant .body .content { display: inline; }
+.msg.assistant .body .content:empty::before { content: "…"; color: var(--dim); }

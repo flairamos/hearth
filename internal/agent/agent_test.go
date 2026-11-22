@@ -363,7 +363,10 @@ func TestPermissionManager(t *testing.T) {
 	if mRisky.NeedsApproval("write_file", tools.CatMutate, "", `{"path":"src/a.txt"}`) {
 		t.Error("risky mode must auto-approve writes inside workdir")
 	}
-	if !mRisky.NeedsApproval("write_file", tools.CatMutate, "", `{"path":"/etc/hosts"}`) {
+	// a parent-of-workdir path is outside on every platform (/etc/hosts is
+	// rooted-but-driveless on Windows, which filepath.Join pulls INSIDE)
+	if !mRisky.NeedsApproval("write_file", tools.CatMutate, "",
+		`{"path":"`+filepath.ToSlash(filepath.Dir(wd))+`/hosts"}`) {
 		t.Error("risky mode must prompt for writes outside workdir")
 	}
 	if mRisky.NeedsApproval("memory_save", tools.CatMutate, "", "{}") {

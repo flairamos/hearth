@@ -419,7 +419,7 @@ func (s *Server) compactNow() (string, error) {
 		Model: sess.Model,
 		Messages: []ollama.Message{
 			{Role: "system", Content: "Summarize the conversation below: keep key facts, decisions, file paths, code names and pending tasks. Be concise but complete, in the same language as the conversation. Output only the summary."},
-			{Role: "user", Content: "Conversation:\n" + firstN(b.String(), 400)},
+			{Role: "user", Content: "Conversation:\n" + firstNLines(b.String(), 400)},
 		},
 		Options:   &ollama.Options{NumPredict: 2048},
 		KeepAlive: s.cfg.Context.KeepAlive,
@@ -431,6 +431,16 @@ func (s *Server) compactNow() (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(resp.Message.Content), nil
+}
+
+// firstNLines caps text at n lines (line-based, unlike byte caps which
+// butcher CJK summaries).
+func firstNLines(s string, n int) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) <= n {
+		return s
+	}
+	return strings.Join(lines[:n], "\n") + "\n…"
 }
 
 // applyCompact swaps the transcript for the summary.
@@ -445,12 +455,6 @@ func (s *Server) applyCompact(summary string) {
 	s.broadcastEvent("reset", "", nil)
 }
 
-func firstN(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
-}
 
 func (s *Server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 	s.interrupt()
