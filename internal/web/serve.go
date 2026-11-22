@@ -455,7 +455,6 @@ func (s *Server) applyCompact(summary string) {
 	s.broadcastEvent("reset", "", nil)
 }
 
-
 func (s *Server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 	s.interrupt()
 	writeJSON(w, map[string]any{"ok": true})

@@ -16,7 +16,7 @@ import (
 
 var refPattern = regexp.MustCompile(`@([^\s@#]+)(?:#L?(\d+)-(\d+))?`)
 
-// workspaceFiles gathers candidate files for the @ picker (relative paths).
+// WorkspaceFiles gathers candidate files for the @ picker (relative paths).
 func WorkspaceFiles(root string, cap int) []string {
 	if cap <= 0 {
 		cap = 500
@@ -53,7 +53,7 @@ func WorkspaceFiles(root string, cap int) []string {
 	return out
 }
 
-// collectRefs snapshots "@path" and "@path#L121-135" tokens from the user's
+// CollectRefs snapshots "@path" and "@path#L121-135" tokens from the user's
 // text. The display text stays as typed; the API layer appends the content
 // blocks from the stored Refs so history stays reproducible.
 func CollectRefs(text, workDir string) ([]core.FileRef, []string) {

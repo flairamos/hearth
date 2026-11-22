@@ -198,7 +198,7 @@ func (s *Session) PopLastUserTurn() (string, bool) {
 	return "", false
 }
 
-// Scratchpad returns the current notes (short-term memory).
+// Notes returns the current notes (short-term memory).
 func (s *Session) Notes() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -213,7 +213,7 @@ func (s *Session) SetScratchpad(v string) {
 	s.Touch()
 }
 
-// SystemPrompt returns the session system prompt.
+// Prompt returns the session system prompt.
 func (s *Session) Prompt() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
