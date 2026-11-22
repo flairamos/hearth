@@ -1,0 +1,20 @@
+# binaries (anchored to repo root — unanchored patterns would also ignore cmd/hearth/)
+/hearth
+/hearth.exe
+/hearth-agent
+/hearth-agent.exe
+/ollama-tui
+/ollama-tui.exe
+dist/
+
+# go
+*.test
+*.out
+
+# editor / OS junk
+.idea/
+.vscode/
+*.swp
+*.zip
+*.tar.gz
+*:Zone.Identifier

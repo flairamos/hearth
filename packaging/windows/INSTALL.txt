@@ -1,0 +1,39 @@
+hearth / hearth-agent — Windows 安装与启动说明
+================================================
+
+Hearth —「炉边」：让本地大模型常暖常驻的终端工作台。
+两个独立二进制：hearth（交互式 TUI）与 hearth-agent（无头自动化）。
+
+【推荐启动方式】
+1. 把本目录的 hearth.exe 和 hearth-agent.exe 解压到一个固定目录
+   （例如 C:\Users\你\bin，并加入 PATH）
+2. 在终端里运行：
+       hearth               （交互式界面）
+       hearth-agent         （无头自动化，如: hearth-agent agent "任务" --yolo）
+
+【双击启动】
+- 双击 run-tui.cmd  → 自动打开 Windows Terminal（或 cmd）并启动界面
+- 双击 run-agent.cmd → 打开终端并进入 agent 用法提示
+- 直接双击 hearth.exe 也可以，但报错时窗口会立即关闭；
+  报错时建议用上面的 .cmd 方式启动，窗口会保留错误信息
+
+【注意事项】
+- 首次运行如被 SmartScreen 拦截：点“更多信息” → “仍要运行”；
+  或在 PowerShell 中执行:  Unblock-File .\hearth.exe
+- 请确认解压的是 *_windows_amd64.zip 里的 .exe 文件
+  （linux/macOS 的产物没有 .exe 扩展名，无法在 Windows 直接运行）
+- 需要本地已运行 Ollama（默认 http://localhost:11434）；
+  程序会自动探测 Ollama / LM Studio / llama.cpp / vLLM / Jan 常见端口
+- 配置文件: %AppData%\hearth\config.json
+  数据/会话: %AppData%\hearth\
+  （旧版 ollama-tui 的配置与会话会被自动沿用，无需迁移）
+- shell 自动选择 PowerShell（可用 agent.shell 配置为 bash/cmd）
+
+常见问题
+--------
+Q: 双击 exe 后窗口一闪而过？
+A: 多半是后端未启动（找不到 Ollama）。先运行:  ollama serve
+   或用 run-tui.cmd 启动，窗口会保留错误信息。
+
+Q: 双击 exe 提示“选择打开方式”？
+A: 你拿到的是 linux/macOS 产物。请下载 *_windows_amd64.zip。

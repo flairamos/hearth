@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hearth — 炉边 · 本地大模型终端工作台</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <span class="logo">hearth<span class="cursor"></span></span>
+  <a class="item active" href="index.html">首页</a>
+  <a class="item" href="install.html">安装</a>
+  <a class="item" href="usage.html">使用指南</a>
+  <a class="item" href="agent.html">hearth-agent</a>
+  <a class="item" href="config.html">配置参考</a>
+  <a class="item" href="architecture.html">架构</a>
+  <span class="spacer"></span>
+  <a class="gh" href="https://github.com/firea/hearth" target="_blank">GitHub ↗</a>
+</nav>
+
+<div class="wrap">
+
+<div class="hero">
+  <h1>hearth<span class="zh">炉边</span></h1>
+  <div class="tagline">把炉火留在自己的机器上。</div>
+  <div class="sub">终端里的本地大模型工作台 —— 交互式对话 + 无头 Agent 双二进制，零云端依赖，专为本地小参数量化模型调优。</div>
+  <div class="prompt">
+    <b>hearth</b>                          <span class="cmt"># 坐炉边：交互式 TUI</span><br>
+    <b>hearth-agent</b> agent "任务" --yolo   <span class="cmt"># 出门办事：无头自动化</span><br>
+    <b>hearth-agent</b> ask "一句话解释 TCP"   <span class="cmt"># 单问，无工具</span>
+  </div>
+</div>
+
+<section>
+  <h2>为什么叫 hearth</h2>
+  <p>hearth = 家中的炉火。模型烧在你自己的 GPU 上，数据不出家门 —— <code>keep_alive</code> 让炉火常暖不熄，对话与自动化都围炉而行。它不是又一个 <code>llm-cli</code>，而是一张炉边座位。</p>
+  <div class="stat-row">
+    <div class="stat"><div class="num">53.6</div><div class="lbl">tok/s 单轮对话<br>（基线 53.8 的 99.6%）</div></div>
+    <div class="stat"><div class="num">53.1</div><div class="lbl">tok/s 多步 agent<br>keep_alive + 前缀缓存</div></div>
+    <div class="stat"><div class="num">13</div><div class="lbl">内置工具<br>文件/命令/web/计算/记忆</div></div>
+    <div class="stat"><div class="num">2</div><div class="lbl">API 风格<br>ollama 原生 + OpenAI 兼容</div></div>
+    <div class="stat"><div class="num">5</div><div class="lbl">本地后端自动发现<br>Ollama/LM Studio/llama.cpp/vLLM/Jan</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>双二进制，独立安装</h2>
+  <div class="binaries">
+    <div class="bin">
+      <span class="name">hearth</span><span class="size">~21 MB</span>
+      <p>交互式 TUI：流式对话（Markdown 渲染）、多会话、<code>@</code> 文件引用、agent 模式（审批对话框）、多模态、实时 tok/s 仪表、命令面板。对标 opencode 的终端体验。</p>
+    </div>
+    <div class="bin">
+      <span class="name">hearth-agent</span><span class="size">~11 MB</span>
+      <p>无头自动化：<code>agent</code> / <code>ask</code> / <code>models</code>，脚本与 CI 友好，<b>零 TUI 依赖</b> —— 没有终端的服务器上也能跑。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>特性一览</h2>
+  <div class="cards">
+    <div class="card"><h4>🔥 后端自动发现</h4><p>配置地址失效时自动探测 Ollama :11434 / LM Studio :1234 / llama.cpp :8080 / vLLM :8000 / Jan :1337，找到后写回配置。装好即用，零配置启动。</p></div>
+    <div class="card"><h4>⌨️ 键盘驱动</h4><p>命令面板 Ctrl+K、会话 Ctrl+P、模型 Alt+M、access Ctrl+G、复制 Ctrl+Y、输入历史 ↑/↓ —— 全部可重映射。</p></div>
+    <div class="card"><h4>🛡️ access 权限三档</h4><p>ask（变更前询问）/ risky（有风险才问，白名单自动）/ full（完全自主）。危险命令任何档位强制人工确认。</p></div>
+    <div class="card"><h4>🧠 双层记忆</h4><p>短期：note 草稿本每步注入，模型始终可见自己的计划；长期：memory.md 事实库跨会话跨进程，自动检索注入。</p></div>
+    <div class="card"><h4>📎 @ 文件引用</h4><p>输入 @ 打开模糊文件选择器；@path#L121-135 附加行范围；发送时快照内容注入上下文。</p></div>
+    <div class="card"><h4>🗜️ 自动压缩</h4><p>token 达 85% 自动摘要压缩，保留摘要 + 尾部原文 + 草稿本 + 长期记忆 —— 长对话不断联。</p></div>
+    <div class="card"><h4>🌐 web 工具</h4><p>web_fetch（HTML 清洗为纯文本）+ web_search（Bing / DuckDuckGo / SearXNG / Brave，无 Key 可用）。</p></div>
+    <div class="card"><h4>🖼️ 多模态</h4><p>/img 附加图片给视觉模型（qwen3.5:4b 支持 vision），无 vision 能力的模型给出行内提示。</p></div>
+    <div class="card"><h4>🪟 Windows 优先</h4><p>PowerShell 自动选择、CRLF 安全编辑、clip.exe 剪贴板、双击 run-tui.cmd 起终端、Scoop 安装。</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>30 秒上手</h2>
+  <pre>
+<span class="cmt"># 1. 本地运行 Ollama 并拉一个模型（hearth 也会自动发现 LM Studio 等）</span>
+<span class="hl">ollama</span> pull qwen3.5:4b
+
+<span class="cmt"># 2. 启动交互式界面（自动发现后端）</span>
+<span class="hl">hearth</span>
+
+<span class="cmt"># 3. 或直接让 agent 干活</span>
+<span class="hl">hearth-agent</span> agent -w ./myproject "统计 src 下所有 Go 文件的行数，写 report.md" --yolo
+  </pre>
+  <div class="callout ok">安装与构建详见 <a href="install.html">安装文档</a>；常用操作见 <a href="usage.html">使用指南</a>。</div>
+</section>
+
+<section>
+  <h2>设计原则</h2>
+  <div class="cards">
+    <div class="card wide"><h4>小模型能力最大化</h4>
+      <p>面向 qwen3.5:4b 这类本地小模型做了成体系的优化：紧凑系统提示、原生 tool_calls + 文本协议双通道解析、工具错误原文回传驱动自纠、步数预算与收尾总结、上下文卫生（thinking 不回传 / 陈旧工具结果截断 / 超限自动裁剪）、易变上下文注入移到消息尾部以保住 Ollama 前缀缓存。对标 Anthropic《Building Effective Agents》：单循环 + 人工检查点，复杂度花在工具接口与上下文质量上。</p>
+    </div>
+    <div class="card"><h4>隐私</h4><p>无遥测、无云端调用，会话与记忆全部本地存储。</p></div>
+    <div class="card"><h4>可分发</h4><p>两个独立单文件二进制，Windows / Linux / macOS，GitHub Releases 提供 SHA256 校验。</p></div>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  hearth <span class="fire">▲</span> 炉边 — v0.4.1 · 本地大模型终端工作台 ·
+  <a href="https://github.com/firea/hearth">GitHub</a> ·
+  <a href="install.html">安装</a> · <a href="usage.html">使用</a> · <a href="agent.html">Agent</a> · <a href="config.html">配置</a> · <a href="architecture.html">架构</a>
+</footer>
+</body>
+</html>

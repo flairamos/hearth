@@ -1,0 +1,32 @@
+{
+  "version": "0.4.1",
+  "homepage": "https://github.com/firea/hearth",
+  "description": "Hearth — the hearth of local AI. Interactive terminal chat (hearth) and headless agent harness (hearth-agent) for local LLM backends: Ollama, LM Studio, llama.cpp, vLLM.",
+  "license": "MIT",
+  "notes": "Two independent binaries: hearth (interactive TUI) and hearth-agent (headless). Config at %AppData%\\hearth\\config.json",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/firea/hearth/releases/download/v0.4.1/hearth_windows_amd64.zip",
+      "hash": "https://github.com/firea/hearth/releases/download/v0.4.1/checksums.sha256"
+    },
+    "arm64": {
+      "url": "https://github.com/firea/hearth/releases/download/v0.4.1/hearth_windows_arm64.zip",
+      "hash": "https://github.com/firea/hearth/releases/download/v0.4.1/checksums.sha256"
+    }
+  },
+  "bin": [
+    "hearth.exe",
+    "hearth-agent.exe"
+  ],
+  "checkver": "github",
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/firea/hearth/releases/download/v$version/hearth_windows_amd64.zip"
+      },
+      "arm64": {
+        "url": "https://github.com/firea/hearth/releases/download/v$version/hearth_windows_arm64.zip"
+      }
+    }
+  }
+}

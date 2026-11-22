@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>使用指南 · hearth — 炉边</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <span class="logo">hearth<span class="cursor"></span></span>
+  <a class="item" href="index.html">首页</a>
+  <a class="item" href="install.html">安装</a>
+  <a class="item active" href="usage.html">使用指南</a>
+  <a class="item" href="agent.html">hearth-agent</a>
+  <a class="item" href="config.html">配置参考</a>
+  <a class="item" href="architecture.html">架构</a>
+  <span class="spacer"></span>
+  <a class="gh" href="https://github.com/firea/hearth" target="_blank">GitHub ↗</a>
+</nav>
+
+<div class="wrap">
+
+<h2>使用指南（hearth TUI）</h2>
+<p>启动 <code>hearth</code> 进入交互式界面。顶部为标题栏（模型 / 会话标题 / 模式徽章 / ctx 占用 / 连接状态），底部为输入框与状态栏（生成中显示实时 <code>~tok/s</code>，完成后显示 <code>⚡ tok/s · last Xs</code> 服务端精确值）。</p>
+
+<h3>快捷键</h3>
+<table>
+  <tr><th>键</th><th>功能</th><th>键</th><th>功能</th></tr>
+  <tr><td><code>Enter</code></td><td>发送消息</td><td><code>Alt+A</code> / <code>Shift+Tab</code></td><td>Agent 模式开关（工具调用）</td></tr>
+  <tr><td><code>Alt+Enter</code> / 行尾 <code>\</code>+<code>Enter</code></td><td>换行</td><td><code>Ctrl+T</code></td><td>思考模式开关</td></tr>
+  <tr><td><code>Esc</code></td><td>中断生成（保留已生成内容）</td><td><code>Ctrl+B</code></td><td>侧栏开关</td></tr>
+  <tr><td><code>Ctrl+K</code></td><td>命令面板（模糊搜索）</td><td><code>Ctrl+L</code></td><td>清屏（保留上下文）</td></tr>
+  <tr><td><code>Ctrl+P</code></td><td>会话切换面板</td><td><code>?</code></td><td>帮助面板（实时显示当前映射）</td></tr>
+  <tr><td><code>Alt+M</code></td><td>模型切换面板（大小/量化/★收藏）</td><td><code>Ctrl+C</code>×2</td><td>退出（生成中 = 中断）</td></tr>
+  <tr><td><code>Ctrl+N</code></td><td>新建会话</td><td><code>PgUp/PgDn</code></td><td>滚动（End 回底部，支持滚轮）</td></tr>
+  <tr><td><code>Ctrl+G</code></td><td>access 权限档循环</td><td><code>↑/↓</code></td><td>输入历史（光标在首/末行时）</td></tr>
+  <tr><td><code>@</code></td><td>文件模糊选择器</td><td><code>Ctrl+Y</code></td><td>复制最后回复到剪贴板</td></tr>
+</table>
+<div class="callout">所有快捷键可在配置 <code>keymap</code> 节重映射；帮助面板实时显示当前绑定。注：<code>Ctrl+M</code> 在终端物理上等于 <code>Enter</code>（都发送 CR），故模型面板用 <code>Alt+M</code>。</div>
+
+<h3>斜杠命令</h3>
+<p>输入框以 <code>/</code> 开头自动弹出补全；<code>Ctrl+K</code> 命令面板共享同一注册表。</p>
+<table>
+  <tr><th>命令</th><th>说明</th></tr>
+  <tr><td><code>/model [name]</code></td><td>切换模型（无参数打开选择面板）</td></tr>
+  <tr><td><code>/new</code> · <code>/sessions</code></td><td>新建会话 · 会话列表（d 删除 / r 重命名）</td></tr>
+  <tr><td><code>/clear</code></td><td>删除当前会话（消息、草稿本、保存文件，需确认），随后自动开新会话</td></tr>
+  <tr><td><code>/system &lt;prompt&gt;</code></td><td>设置会话 system prompt（持久）</td></tr>
+  <tr><td><code>/temp &lt;0-2&gt;</code> · <code>/ctx &lt;n&gt;</code></td><td>温度 · 上下文窗口（num_ctx）</td></tr>
+  <tr><td><code>/think [on|off]</code></td><td>思考模式开关</td></tr>
+  <tr><td><code>/agent [on|off]</code></td><td>agent 模式开关（工具调用）</td></tr>
+  <tr><td><code>/access [ask|risky|full]</code></td><td>权限档切换</td></tr>
+  <tr><td><code>/img &lt;path&gt;</code></td><td>附加图片给视觉模型</td></tr>
+  <tr><td><code>/save [path]</code></td><td>导出会话为 Markdown</td></tr>
+  <tr><td><code>/compact</code></td><td>摘要压缩上下文</td></tr>
+  <tr><td><code>/retry</code></td><td>回滚最后一轮并重新生成</td></tr>
+  <tr><td><code>/config</code></td><td>在 $EDITOR 中编辑配置（保存后热重载）</td></tr>
+  <tr><td><code>/theme [dark|light|dracula]</code></td><td>切换主题</td></tr>
+  <tr><td><code>/title &lt;text&gt;</code></td><td>重命名会话</td></tr>
+  <tr><td><code>/help</code> · <code>/quit</code></td><td>帮助 · 退出</td></tr>
+  <tr><td>自定义命令</td><td>配置 <code>commands</code> 节定义 prompt 模板（<code>{{input}}</code> 占位符）</td></tr>
+</table>
+
+<h3>@ 文件引用</h3>
+<ul>
+  <li>输入 <code>@</code> 打开模糊文件选择器（跳过 .git / node_modules 等，子串匹配优先）</li>
+  <li>选中插入 <code>@路径</code>；追加 <code>#L121-135</code> 或 <code>#121-135</code> 指定行范围</li>
+  <li>发送时快照文件内容注入上下文，转录里只显示 <code>📎 路径 (N chars)</code> 标记</li>
+  <li>文件缺失时提示 <code>missing:</code>，行号越界同样报告</li>
+</ul>
+
+<h3>会话管理</h3>
+<ul>
+  <li><code>Ctrl+P</code> 面板：<code>Enter</code> 加载 · <code>d</code> 删除（二次确认）· <code>r</code> 重命名；底部提示条常驻这些按键</li>
+  <li><code>/clear</code> = <b>删除当前会话</b>：消息、note 草稿本（短期）与保存的会话文件（长期）一起清除，二次确认后自动开一个新会话；跨会话长期记忆 <code>memory.md</code> 不受影响</li>
+  <li>面板与侧栏的会话列表中，空会话（新建未发言、清空后）不显示——当前会话例外，始终可见</li>
+  <li>会话按最近使用排序，自动以首条消息生成标题，重启完整恢复（含未完成标记）</li>
+  <li><code>/save</code> 导出 Markdown（含工具调用与结果）</li>
+</ul>
+
+<h3>多模态</h3>
+<p><code>/img &lt;path&gt;</code> 附加图片（≤8MB，自动 MIME 嗅探），下一条消息一并发送。模型具备 vision 能力时正常识别；不支持 vision 的模型会给出提示。</p>
+
+<h3>agent 模式（TUI 内）</h3>
+<ul>
+  <li><code>Alt+A</code> 或 <code>/agent</code> 切换，header 常驻橙色 <code>[CHAT]</code> / <code>[AGENT]</code> 徽章</li>
+  <li>模型获得 13 个工具；写文件 / 执行命令按 <b>access 权限档</b> 弹出审批框：<code>a</code> 允许一次 · <code>s</code> 本会话始终允许 · <code>d</code> 拒绝</li>
+  <li>危险命令（rm -rf、sudo、<code>curl|sh</code>、<code>del /s</code>、<code>format C:</code> 等）<b>任何档位</b>强制人工确认</li>
+  <li>工具卡片显示调用与结果（<code>⚙</code> 调用 / <code>✓</code> 成功 / <code>✗</code> 失败），模型每步可读写 note 草稿本</li>
+</ul>
+
+<h3>上下文管理</h3>
+<ul>
+  <li>header 右侧 <code>ctx 已用/窗口</code>；状态栏进度条 &gt;80% 黄、&gt;95% 红</li>
+  <li>发送前预检：接近上限自动裁剪最旧回合（保留 system prompt 与最近回合）</li>
+  <li>达到 85% 自动摘要压缩：保留「摘要 + 尾部原文 + 草稿本 + 长期记忆」—— 长对话不断联</li>
+  <li><code>/compact</code> 手动压缩 · <code>/ctx</code> 调整窗口 · <code>/retry</code> 回滚重生成</li>
+</ul>
+
+<h3>主题与外观</h3>
+<p>内置 <code>dark</code> / <code>dracula</code> / <code>light</code> 三套主题（<code>/theme</code> 循环），非 true-color 终端自动降级。侧栏 <code>Ctrl+B</code> 开关，窗口过窄自动隐藏。</p>
+
+</div>
+
+<footer>
+  hearth <span class="fire" style="color:var(--ember)">▲</span> 炉边 — v0.4.1 ·
+  <a href="index.html">首页</a> · <a href="install.html">安装</a> · <a href="agent.html">hearth-agent</a> · <a href="config.html">配置参考</a> · <a href="architecture.html">架构</a>
+</footer>
+</body>
+</html>

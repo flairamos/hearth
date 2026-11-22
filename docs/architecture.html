@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>架构 — hearth · 炉边</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <span class="logo">hearth<span class="cursor"></span></span>
+  <a class="item" href="index.html">首页</a>
+  <a class="item" href="install.html">安装</a>
+  <a class="item" href="usage.html">使用指南</a>
+  <a class="item" href="agent.html">hearth-agent</a>
+  <a class="item" href="config.html">配置参考</a>
+  <a class="item active" href="architecture.html">架构</a>
+  <span class="spacer"></span>
+  <a class="gh" href="https://github.com/firea/hearth" target="_blank">GitHub ↗</a>
+</nav>
+
+<div class="wrap">
+
+<h2>架构</h2>
+<p>单仓库、双二进制的 Go 分层单体：约 <b>8.3k 行</b>源码（另有 1.3k 行测试），UI 栈构建在 Charm 家族（Bubble Tea + Lipgloss + Glamour）之上，其余为标准库 + 自研包。<b>零数据库、零云端依赖</b> —— 会话是本地 JSON 文件，长期记忆是一个 Markdown 文件。本文对应 v0.4.1 源码，每个小节都可直接在 <code>internal/</code> 里找到对应实现。</p>
+
+<h3>目录</h3>
+<div class="toc">
+  <a href="#overview">1. 分层总览</a>
+  <a href="#binaries">2. 运行时形态：两个入口</a>
+  <a href="#tui">3. TUI 内部（tui/）</a>
+  <a href="#agentcore">4. Agent 内核（agent/）</a>
+  <a href="#perms">5. 权限管理器（agent/perm.go）</a>
+  <a href="#tools">6. 工具系统（tools/）</a>
+  <a href="#provider">7. Provider 层（provider/ + ollama/）</a>
+  <a href="#domain">8. 领域模型与存储（core/ + store/）</a>
+  <a href="#config">9. 配置与迁移（config/）</a>
+  <a href="#headless">10. 无头 CLI（cli/）</a>
+  <a href="#perf">11. 性能与并发设计</a>
+</div>
+
+<!-- ================================================================ -->
+<section id="overview">
+<h3>1. 分层总览</h3>
+<pre>
+┌─ 入口层 ──────────────────────────────┐
+│  cmd/hearth        TUI 交互入口        │
+│  cmd/hearth-agent  无头 CLI 入口       │  ← 只 import cli/，不碰 tui/
+└──────────────┬───────────────────────┘
+┌─ 界面层 ─────▼───────────────────────┐
+│  internal/tui     Bubble Tea 状态机   │  键盘路由、面板、审批对话框、
+│  internal/cli     hearth-agent CLI     │  渲染缓存、50ms 批量刷新
+└──────────────┬───────────────────────┘
+┌─ 领域层 ─────▼───────────────────────┐
+│  internal/core    Session/Message     │  并发安全快照、token 估算、裁剪
+│  internal/agent   agent 循环          │  工具调度 + 权限管理器（三档）
+└──────┬───────────────┬───────────────┘
+┌─ 能力层 ▼      ┌──────▼───────────────┐
+│ internal/tools │ internal/provider    │  13 个纯 Go 工具；ollama/openai
+│ (read/bash/…)  │ internal/ollama      │  双 API 风格 + 本地端口自动探测
+└───────┬────────┴─────────────────────┘
+┌─ 基础层 ▼─────────────────────────────┐
+│  internal/store    JSON 原子写持久化   │
+│  internal/config   配置加载 / 热重载    │
+│  internal/theme    Lipgloss 主题       │
+└──────────────────────────────────────┘
+</pre>
+<p>依赖方向严格向下：上层 import 下层，下层不知道上层。<code>agent</code> 通过 <code>ChatClient</code> 接口（只有 <code>ChatStream</code> 一个方法）引用网络层，测试用 mock 回放整轮循环。<code>tools</code> 只被 <code>agent</code> 和 <code>tui</code> 调用，自己不发起对话。</p>
+</section>
+
+<!-- ================================================================ -->
+<section id="binaries">
+<h3>2. 运行时形态：两个入口</h3>
+<table>
+  <tr><th>二进制</th><th>入口</th><th>生命周期</th></tr>
+  <tr><td><code>hearth</code>（~21MB）</td><td><code>cmd/hearth/main.go</code></td><td>加载配置 → <code>provider.EnsureBackend</code>（自动发现）→ 构建 <code>tui.App</code> → Bubble Tea <code>Program.Run()</code> 事件循环</td></tr>
+  <tr><td><code>hearth-agent</code>（~11MB）</td><td><code>cmd/hearth-agent/main.go</code></td><td>flag 解析 → <code>cli.RunAgent / Ask / Models</code>，单次执行即退出；<b>不 import 任何 Bubble Tea 包</b></td></tr>
+</table>
+<p>两者共享同一条 <code>agent → core → provider</code> 链和同一份配置 / 会话 / 记忆，因此 <code>hearth-agent</code> 的运行结果（长期记忆、会话文件）与 TUI 完全互通。</p>
+</section>
+
+<!-- ================================================================ -->
+<section id="tui">
+<h3>3. TUI 内部（internal/tui，~3.1k 行）</h3>
+
+<h4>3.1 App 模型与按键路由</h4>
+<p>整个界面是一个 Bubble Tea <code>Model</code>（<code>App</code> 结构体）。<code>handleKey</code> 按固定优先级路由按键，先到先得：</p>
+<pre>
+quit(ctrl+c×2) → 面板(审批/确认/重命名/帮助/列表) → 全局快捷键
+→ 滚动(pgup/pgdn/end) → 斜杠弹窗(↑↓/tab/esc) → 输入框(enter/历史/@)
+</pre>
+<p>面板共 8 种：<code>panelApproval</code>（工具审批对话框）、<code>panelConfirm</code>（危险操作确认）、<code>panelRename</code>、<code>panelHelp</code>，以及共用 <code>listPanel</code> 的模型 / 会话 / 命令面板 / 文件选择四种列表（支持输入过滤、↑↓/ctrl+n/p 移动、enter 选中）。</p>
+<p>输入框是 bubbles 的 <code>textarea</code>：<code>Enter</code> 发送、<code>Alt+Enter</code>/<code>\</code>+Enter 换行、空输入按 <code>?</code> 打开帮助、<code>@</code> 打开文件选择器、输入以 <code>/</code> 开头时弹出斜杠命令弹窗（8 行滚动窗口 + 位置指示，↑↓/滚轮选择、tab 补全、esc 收起）。</p>
+
+<h4>3.2 渲染管线（render.go + stream.go）</h4>
+<pre>
+网络 goroutine → buf.Add(增量) → deltaBuf(mu 保护)
+    Total(): 累计全文（组装最终消息）
+    Drain(): 待刷尾部 ←—— 50ms ticker → prog.Send(deltaMsg) → Update → refreshContent
+</pre>
+<p>关键点：</p>
+<ul>
+  <li><b>渲染节流</b>：流式增量不逐帧重绘，由 50ms ticker 批量刷进 UI（PRD 渲染节流）；回合结束后一次性从 <code>Total()</code> 组装完整消息入库。状态栏的实时 tok/s 分母是<b>生成活跃时间</b>（相邻增量间隔 &lt;2s 才计入）—— 工具执行的零输出时间不计入，否则长 agent 任务的回合平均速率会被稀释到个位数。</li>
+  <li><b>渲染缓存</b>：<code>renderer.cache</code> 以 <code>(消息下标, 内容长度)</code> 为键 —— 会话消息一旦写入不可变，已完成块只渲染一次；流式中的回复走 <code>liveBlock</code> 纯文本，<b>不经 glamour</b>，且换行<b>增量推进</b>（append-only 流每行只排一次，不再每帧全量重排 —— 长回复后期 16× 提速）。拼接层再加<b>会话前缀缓存</b>（append-only，边界消息时间戳 + 宽度自校验）与<b>相同内容跳过 SetContent</b> —— 长会话流式帧从全量 Join（实测 2.1ms/2717 次分配每帧）降到仅拼接尾部（0.11ms/1 次）。</li>
+  <li><b>Markdown</b>：只有已完成的 assistant 消息用 glamour 渲染（宽度变化时惰性重建 renderer），缓存失效场景：窗口 resize、裁剪、模型切换、会话切换（<code>Invalidate()</code>）。</li>
+  <li><b>thinking 流</b>：只显示最后 4 行暗色文本，不参与 Markdown 渲染。</li>
+</ul>
+
+<h4>3.3 回合生命周期（app.go startTurn → onDone）</h4>
+<pre>
+发送前守卫: UsedTokens &gt; 90% numCtx → TrimToMax 预裁剪
+  → 用户消息入 Session → saveSession（原子写）
+  → agent 模式 ? startAgentTurn : startChatTurn（各自起 50ms flusher + 网络 goroutine）
+  → 事件循环（deltaMsg / agentEvtMsg / doneMsg）
+onDone: 错误分类处理 → AutoTitle → saveSession
+  → 85% 自动压缩检查（仅成功回合 —— 失败回合不压缩,证据不被摘要抹掉,
+     状态栏持续显示 ✗ 任务失败原因,而非只闪 4 秒的 toast）
+  → pendingSends 队列（busy 时输入排队，150ms 后逐条回放）
+</pre>
+<p>错误自愈：<b>连接错误</b>熄灭右上角 ollama 指示灯；<b>404</b> 触发"did you mean"模型名建议（SuggestModels 打分）；<b>上下文溢出</b>回滚本轮（<code>PopLastUserTurn</code>）、裁剪历史、自动重发一次。生成中 <code>Esc</code> 取消 context，已到的部分输出保留并标记 <code>interrupted</code>。</p>
+
+<h4>3.4 @ 文件引用与多模态</h4>
+<p><code>refs.go</code>：<code>@path#L121-135</code> 正则解析 → 文件选择器（跳过 .git/node_modules/vendor 等 13 类目录，上限 500 文件）→ <b>发送时快照内容</b>存入 <code>FileRef.Content</code>（后续编辑不影响已发内容），API 发送时展开为带行号的上下文块。图片走 base64 进 <code>Message.Images</code>，模型无 vision 能力时行内提示。</p>
+</section>
+
+<!-- ================================================================ -->
+<section id="agentcore">
+<h3>4. Agent 内核（internal/agent，~800 行）</h3>
+
+<h4>4.1 Run()：单 goroutine 事件流</h4>
+<p><code>Agent.Run(ctx)</code> 返回 <code>&lt;-chan Event</code>：内部 goroutine 跑完整个工具循环，7 种事件（<code>EvThinking / EvContent / EvToolStart / EvToolResult / EvApproval / EvTurnDone / EvError</code>）经 64 缓冲 channel 推给消费者（TUI 或 CLI），channel 关闭即回合结束。取消 = 取消 ctx，部分输出照常入库。</p>
+
+<h4>4.2 工具循环</h4>
+<pre>
+for step := 0; step &lt; MaxSteps(默认25); step++ {
+    streamTurn(): 流式收集 content/thinking/原生 tool_calls
+    ├─ 无原生调用 → 文本协议 fallback 解析
+    ├─ 无任何调用 → 自然完成，EvTurnDone 收尾
+    ├─ 溢出错误  → TrimToMax 裁剪后 step-- 重试（不耗预算）
+    └─ 逐个执行工具 execTool()（权限拦截 → 执行 → 结果入库）
+    步间守卫: 估算 &gt; 90% 窗口 → 轮内裁剪并发 EvTrimmed（压缩仍等回合结束）
+    倒数第二步执行后发 "step budget: n/25 used — wrap up soon" 提示
+}
+预算耗尽 → 追加一条临时 system 消息，禁用工具再调一次：只许总结收尾
+</pre>
+
+<h4>4.3 双通道工具调用解析</h4>
+<p>小模型经常不按原生 <code>tool_calls</code> 通道出牌，<code>parseTextToolCalls</code> 兜底三种文本格式（解析后从正文剔除）：<code>&lt;tool_call&gt;{...}&lt;/tool_call&gt;</code> 标签、<code>```json / ```tool_call</code> 围栏、整段裸 <code>{"name","arguments"}</code> JSON；<code>arguments</code> 兼容对象和 JSON 字符串两种形态。</p>
+
+<h4>4.4 上下文组装 apiMessages()——前缀缓存友好的布局</h4>
+<pre>
+[system] 会话系统提示 + 紧凑 agent 规则（10 条，≤1 屏）   ← 稳定前缀，命中缓存
+[system] SystemHint（headless 场景附加）                  ← 稳定
+[user / assistant / tool …] 完整历史                      ← 步间不变，命中缓存
+[system] 尾部易变注入：Session notes(≤1200字符) + 长期记忆(最近8条) ← 每步重算
+</pre>
+<p>易变内容（草稿本、记忆）放在<b>消息尾部</b>而非系统提示，使每步只重新评估一个小后缀，历史前缀持续命中 Ollama 前缀缓存 —— 实测多步 agent 壁钟 -22%。另有<b>上下文卫生</b>：从尾部数第 7 条起的旧工具结果截断到 <code>MaxToolLen/3</code>；thinking 不回传；工具结果超 <code>MaxToolLen</code>(8000字符) 截断。context 的运行时载体与持久化位置见 <a href="#storage-ctx">8.6 节</a>。</p>
+
+<h4>4.5 流式与自愈</h4>
+<p><code>streamTurn</code> 请求带显式 <code>Think: true/false</code>；服务器报 "does not support thinking" 时自动去掉该 flag 重试一次。小模型可能把最终回答只写进 thinking 字段 —— 完成路径会把它提升为正文（已完成消息不渲染 thinking，否则回答"隐形"、转录像无故停在最后的工具结果）；完全空响应标记 <code>Usage.Failed</code> 并发 EvError，状态栏持续显示 ✗。回答被 <code>num_predict</code>/<code>num_ctx</code> 截断时（<code>done_reason=length</code>），消息尾部显示截断标记并 toast 提示调整 —— 截断的回答不再伪装成完整回答。用量统计取自服务端字段（<code>PromptEvalCount / EvalCount / EvalDuration</code>），TPS = 输出 token ÷ 服务器实测生成时间，而非壁钟。</p>
+</section>
+
+<!-- ================================================================ -->
+<section id="perms">
+<h3>5. 权限管理器（agent/perm.go）</h3>
+<h4>5.1 判定顺序（NeedsApproval）</h4>
+<pre>
+deny_patterns 命中(含内置14条强制正则) → 强制弹审批（full 模式也不例外）
+→ 会话级已批准(tool) → 放行
+→ read 类工具 → 放行
+→ auto_approve 配置 → 放行
+→ 按 mode: full 放行 / risky 白名单判定 / ask 一律弹
+</pre>
+<p>审批交互是同步的：<code>ApprovalRequest</code> 带 <code>Respond chan ApprovalDecision</code>，UI 弹对话框用户按键后 <code>Decide()</code>（once / session / deny），channel 容量 1 且 <code>recover()</code> 保护 —— UI 已关闭时发送不会 panic。</p>
+<h4>5.2 三档语义</h4>
+<table>
+  <tr><th>档位</th><th>bash</th><th>write/edit</th><th>memory_save</th><th>其他变更</th></tr>
+  <tr><td><code>ask</code></td><td>弹审批</td><td>弹审批</td><td>弹审批</td><td>弹审批</td></tr>
+  <tr><td><code>risky</code></td><td>只读白名单自动</td><td>工作目录内自动</td><td>自动</td><td>弹审批</td></tr>
+  <tr><td><code>full</code></td><td>自动</td><td>自动</td><td>自动</td><td>自动（deny 仍拦）</td></tr>
+</table>
+<p>白名单 42 条只读前缀（ls/cat/grep/git status/…含 PowerShell 的 get-childitem 等）；链式命令（<code>|</code> <code>;</code> <code>&amp;&amp;</code>）<b>逐段</b>校验，任一段不在白名单即弹审批。强制正则覆盖 rm -rf、mkfs、dd of=/dev/、fork bomb、sudo、curl|sh、git push -f、del /s、format C:、remove-item -recurse 等 14 类。工作目录判定用 <code>filepath.Rel</code> 防御 <code>../</code> 逃逸。别名归一：<code>standard→ask</code>、<code>yolo→full</code>（CLI 的 <code>--yolo</code> 即此）。</p>
+</section>
+
+<!-- ================================================================ -->
+<section id="tools">
+<h3>6. 工具系统（internal/tools，~1.7k 行）</h3>
+<h4>6.1 结构</h4>
+<p>工具是纯数据描述 + 函数指针：<code>Tool{Name, Desc, Schema(JSON Schema), Category(read/mutate/exec), Fn}</code>。<code>Registry</code> 持有工作目录、超时、shell 偏好与可选的 Session / Memory / Search 接线，<code>All()</code> 按系统提示展示顺序返回 13 个工具。<code>TUI /config</code> 或模式切换后 <code>syncRegistry()</code> 重新接线。</p>
+<h4>6.2 内置 13 工具与实现要点</h4>
+<table>
+  <tr><th>工具</th><th>类别</th><th>实现要点</th></tr>
+  <tr><td><code>read_file</code></td><td>read</td><td>48KB/次上限、默认 500 行带行号、二进制嗅探（首 1KB 含 \0 拒读）、越界给出续读提示</td></tr>
+  <tr><td><code>list_dir</code></td><td>read</td><td>目录优先排序、500 条上限、显示字节数</td></tr>
+  <tr><td><code>glob</code></td><td>read</td><td>自研 <code>globWalk</code> 支持 <code>**</code> 跨目录、跳过 .git/node_modules、200 结果上限</td></tr>
+  <tr><td><code>grep</code></td><td>read</td><td>Go RE2 正则、120 匹配上限、跳过 8 类构建目录与 &gt;2MB 文件、行宽 240 截断</td></tr>
+  <tr><td><code>calculator</code></td><td>read</td><td>递归下降表达式解析器（进程内，无 shell）：四则 + 幂、14 个函数、pi/e；Windows/Linux 行为一致</td></tr>
+  <tr><td><code>note</code></td><td>read</td><td>会话草稿本 write/append/read，存 <code>Session.Scratchpad</code>，每步注入提示尾部</td></tr>
+  <tr><td><code>memory_recall</code></td><td>read</td><td>大小写不敏感子串检索，空查询返回最近 10 条</td></tr>
+  <tr><td><code>memory_save</code></td><td>mutate</td><td>追加到 memory.md（tmp+rename 原子写），去重、单条 ≤400 字、总量 ≤500 条</td></tr>
+  <tr><td><code>web_fetch</code></td><td>read</td><td>20s 超时、300KB 上限、HTML→纯文本管线（title 提取 / script·style·head 剔除 / 实体解码）、JSON 自动 pretty</td></tr>
+  <tr><td><code>web_search</code></td><td>read</td><td>四引擎：Bing（HTML 抓取，无 Key 可用）/ DuckDuckGo html 端点 / SearXNG JSON / Brave API；DDG 重定向链接解包</td></tr>
+  <tr><td><code>write_file</code></td><td>mutate</td><td>自动建父目录、0644</td></tr>
+  <tr><td><code>edit_file</code></td><td>mutate</td><td>old_string <b>唯一性校验</b>（0 次给最相似行提示、多次拒绝）；CRLF 安全——按 \n 匹配、写回恢复原行尾约定</td></tr>
+  <tr><td><code>bash</code></td><td>exec</td><td>shell 自动选择：Windows PowerShell（无则 cmd），类 Unix bash；<code>agent.shell</code> 可强制；超时默认 120s 可覆盖；输出带 exit code</td></tr>
+</table>
+<p class="note">所有输出统一经 <code>truncOut</code>/截断保护，最终由 agent 的 <code>MaxToolLen</code> 再兜底 —— 小模型的上下文不会被一条工具输出撑爆。</p>
+</section>
+
+<!-- ================================================================ -->
+<section id="provider">
+<h3>7. Provider 层（provider/ + ollama/）</h3>
+<h4>7.1 Client 接口</h4>
+<p>5 个方法（<code>ChatStream / Chat / Tags / Show / Ping</code>），参数与返回值全部使用 <code>ollama</code> 包的<b>规范类型</b> —— OpenAI 兼容客户端在边界做双向翻译，上层（agent/tui/cli）对后端差异零感知。</p>
+<h4>7.2 工厂与风格识别</h4>
+<p><code>api_style: auto</code> 按 URL 形状识别（<code>/v1</code> 结尾 → openai）；<code>ollama</code> 模式下 URL 误带 <code>/v1</code> 会被容忍剥离；openai 模式缺 <code>/v1</code> 自动补全。</p>
+<h4>7.3 ollama 原生客户端（client.go）</h4>
+<ul>
+  <li><code>/api/chat</code> NDJSON 流：<code>bufio.Scanner</code> 8MB 行缓冲（thinking 块可能很长）。</li>
+  <li><b>num_ctx 推送</b>：每次请求都携带 <code>options.num_ctx</code>（来自会话参数 <code>/ctx</code> 或配置 <code>context.num_ctx</code>，默认 16384）—— 不推则 Ollama 落回自己的服务端默认（2048/4096，视版本），窗口会被砍小。</li>
+  <li><b>错误分类</b>：<code>ModelError{Status,Body}</code> + <code>IsNotFound</code>(404) / <code>IsContextOverflow</code>(body 含 context exceed/length/too large/unable to pack) / <code>IsConnError</code>(net/url.Error 系) —— agent 与 TUI 据此走不同自愈分支。</li>
+  <li><b>重试</b>：连接类错误指数退避最多 3 次（500ms 起步），且仅在<b>尚未收到任何流块</b>时重试，避免重复输出。</li>
+</ul>
+<h4>7.4 OpenAI 兼容客户端（openai.go）</h4>
+<ul>
+  <li>请求翻译：<code>options</code> → temperature / top_p / seed，<code>NumPredict</code> → <code>max_tokens</code>；<code>keep_alive</code> 无对应概念即丢弃；消息含图片时按 base64 头嗅探 MIME 拼 data-URI（严格服务器校验媒体类型）。</li>
+  <li><b>num_ctx 不对称</b>：OpenAI Chat Completions 协议没有上下文窗口参数，<code>NumCtx</code> 在翻译时<b>被丢弃、不发送</b> —— 接 LM Studio / llama.cpp / vLLM 时真实窗口由后端服务自己的配置决定；hearth 的 16384 此时只用于内部记账（90% 预裁剪 / 85% 自动压缩的触发基准与状态栏 ctx 仪表），若与后端实际窗口不一致，估算会偏离现实。原生模式则每请求推送（见 7.3）。</li>
+  <li>流式：SSE <code>data:</code> 块解析，<code>[DONE]</code> 终止；<b>tool_calls 分片重组</b>（参数按 index 逐块到达，<code>toolAccum</code> 合并）。</li>
+  <li>错误体翻译回 <code>ModelError</code>，复用同一套分类助手；模型列表走 <code>/v1/models</code>，Show 用能力探测模拟。</li>
+</ul>
+<h4>7.5 本地后端自动发现（discovery.go）</h4>
+<table>
+  <tr><th>候选</th><th>风格</th></tr>
+  <tr><td>localhost:11434（ollama 原生 + /v1 两种）</td><td>ollama</td></tr>
+  <tr><td>LM Studio :1234 · llama.cpp :8080 · vLLM :8000 · Jan :1337</td><td>openai</td></tr>
+</table>
+<p>配置地址优先（1.2s probe 超时）→ 失败则遍历候选表（总超时 6s）→ 命中后<b>写回配置文件</b>持久化，下次直接命中。</p>
+</section>
+
+<!-- ================================================================ -->
+<section id="domain">
+<h3>8. 领域模型与存储（core/ + store/）</h3>
+<h4>8.1 Session 并发模型</h4>
+<p><code>Session</code> 内置 <code>sync.RWMutex</code>：agent 循环在自己的 goroutine 里追加消息，UI 线程同时渲染 —— 所有读取走 <code>Snapshot()/Clone()</code> 拷贝出独立切片，写走 <code>Add/SetMessages/TrimToMax</code>。这是整个程序里最关键的共享状态，测试里有并发压力用例。</p>
+<h4>8.2 Token 估算与裁剪</h4>
+<p><code>EstimateTokens</code> 是 CJK 感知启发式：汉字/假名/谚文 ≈ 1 token/字，其他 ≈ 4 字符/token（对中文对话误差远小于按字节估算）。<code>TrimToMax</code> 按预算 ×85% 安全边裁：<b>整轮</b>丢弃（user→assistant 含其间全部 tool 交换），系统提示与最后一轮永远保留。只剩一轮时（超长 agent 任务是一条 user 消息带几十条消息），回退为<b>轮内裁剪</b>：按 assistant→tool 交换组从旧到新丢弃（调用与结果成对不拆散），开头 user 消息与最新一组永远保留 —— 否则单轮 agent 会话会在窗口外卡死、无法自愈。</p>
+<h4>8.3 会话持久化（store.go）</h4>
+<p>每会话一个 JSON 文件（<code>DataDir/sessions/&lt;id&gt;.json</code>），<b>tmp + rename 原子写</b>；Save 先 <code>Clone()</code> 再序列化，agent 并发写入不会撕裂输出。Load 校验 id 防路径穿越；List 全目录扫描按更新时间排序。</p>
+<h4>8.4 双层记忆</h4>
+<table>
+  <tr><th>层</th><th>载体</th><th>生命周期</th><th>注入方式</th></tr>
+  <tr><td>短期</td><td><code>Session.Scratchpad</code>（note 工具读写）</td><td>会话内</td><td>每步注入消息尾部（≤1200 字符）</td></tr>
+  <tr><td>长期</td><td><code>DataDir/memory.md</code>（- [时间] 内容 一行一条）</td><td>跨会话跨进程</td><td>每回合注入最近 8 条；memory_recall 按需检索</td></tr>
+</table>
+<p>长期记忆带 <code>sync.Mutex</code> 串行化读写，外部手改文件也能被解析（不识别行整条保留）。</p>
+<h4>8.5 自动压缩（tui/export.go）</h4>
+<p>回合成功结束且 <code>UsedTokens ≥ num_ctx × 85%</code> 时触发：<code>compactSummarize</code> 用同一模型做一次非流式总结（保留关键事实/决策/文件路径/待办，跟随对话语言）→ 新消息序列 = <b>[conversation summary] + 压缩期间新增的尾部原文(含相邻一轮完整 user/assistant) + 草稿本</b> —— 压缩后对话"不断联"。</p>
+
+<h4 id="storage-ctx">8.6 上下文与记忆：架构与存储位置</h4>
+<p><b>Agent 的 context 没有独立存储</b>——它是每一步从 Session <b>现场投影</b>出来的视图：<code>apiMessages()</code>（4.4 节）在每个循环步重新组装一次请求消息，会话 JSON 才是唯一事实源。三者的关系：</p>
+<pre>
+Session（内存,唯一事实源）
+  ├─ Messages []Message     ──apiMessages() 投影──▶ 每步发给模型的 context
+  ├─ Scratchpad（短期记忆）   ─────────────▶ 拼进 context 尾部 system 消息
+  └─ DataDir/memory.md（长期记忆）────────▶ 取最近 8 条拼进同一处
+      │
+      └─ store.Save：每回合原子写 ▼
+         DataDir/sessions/&lt;id&gt;.json（会话 + scratchpad 字段一并持久化）
+</pre>
+<table>
+  <tr><th>内容</th><th>运行时</th><th>持久化位置</th></tr>
+  <tr><td>Agent context</td><td><code>core.Session.Messages</code>（RWMutex 保护，UI 经 Snapshot/Clone 拷贝读取）</td><td>会话 JSON 文件；<b>无独立的 context 缓存/向量库/数据库</b></td></tr>
+  <tr><td>短期记忆（note 草稿本）</td><td><code>Session.Scratchpad</code> 字段</td><td>会话 JSON 内部的 <code>scratchpad</code> 字段，随会话一起原子写</td></tr>
+  <tr><td>长期记忆（memory_save/recall）</td><td><code>tools.MemoryStore</code>（Mutex 串行）</td><td><code>&lt;数据目录&gt;/memory.md</code>，一行一条 <code>- [时间] 内容</code>；去重、单条 ≤400 字、总量 ≤500 条</td></tr>
+</table>
+<p><b>数据目录的解析顺序</b>（<code>config.DataDir()</code>）：环境变量 <code>HEARTH_DATA</code> → 旧变量 <code>OLLAMA_TUI_DATA</code> → 按平台默认：</p>
+<table>
+  <tr><th>平台</th><th>数据目录</th></tr>
+  <tr><td>Windows</td><td><code>%AppData%\hearth\</code></td></tr>
+  <tr><td>Linux / macOS</td><td><code>$XDG_DATA_HOME/hearth</code>（未设则为 <code>~/.local/share/hearth</code>）</td></tr>
+  <tr><td>旧版迁移</td><td>同位置 <code>ollama-tui</code> 目录已存在而 hearth 目录不存在时，<b>继续沿用旧目录</b>（惰性迁移，无需手动搬家）</td></tr>
+</table>
+</section>
+
+<!-- ================================================================ -->
+<section id="config">
+<h3>9. 配置与迁移（internal/config）</h3>
+<ul>
+  <li><b>路径链</b>：<code>HEARTH_CONFIG</code> 环境变量 → 用户配置目录 hearth/ → 用户配置目录 ollama-tui/（旧品牌）→ 家目录点文件（新旧两种）。<b>惰性迁移</b>：旧 ollama-tui 的配置与会话目录存在就继续沿用，Save 永远写新主路径。</li>
+  <li><b>normalize 钳制</b>：加载后统一夹取合法区间（num_ctx ≥ 2048、CompactAtPct 50–100、温度 0–2……），非法权限档/主题/引擎归一为默认值，配置文件手写坏值不会引发运行时异常。</li>
+  <li><b>热重载</b>：TUI 内 <code>/config</code> 在 $EDITOR 打开文件，保存退出后 <code>configReloadedMsg</code> 重建 perms/memory/registry/主题，无需重启。</li>
+  <li><b>数据目录</b>：<code>DataDir()</code> 同样有新旧品牌链 + <code>HEARTH_DATA</code> 环境变量覆盖；会话在 <code>DataDir/sessions/</code>，长期记忆在 <code>DataDir/memory.md</code>。</li>
+</ul>
+</section>
+
+<!-- ================================================================ -->
+<section id="headless">
+<h3>10. 无头 CLI（internal/cli）</h3>
+<h4>10.1 三个子命令</h4>
+<table>
+  <tr><th>命令</th><th>行为</th></tr>
+  <tr><td><code>agent "任务"</code></td><td>完整 agent 循环；<code>-w</code> 工作目录、<code>-m</code> 模型、<code>--yolo</code>（= full 档）、<code>--max-steps</code>、<code>--api-style</code>、<code>--json</code></td></tr>
+  <tr><td><code>ask "问题"</code></td><td>单轮无工具问答，直连 ChatStream；thinking 字段兜底（正文为空时输出 thinking）</td></tr>
+  <tr><td><code>models</code></td><td>列出后端模型（参数量/量化/体积/能力四列）</td></tr>
+</table>
+<h4>10.2 --json NDJSON 事件流</h4>
+<pre>
+<span class="hl">hearth-agent</span> agent "…" <span class="hl">--json</span> | jq 'select(.event=="done")'
+{"event":"content","text":"…"}          <span class="cmt"># 正文增量</span>
+{"event":"tool_start","tool":"bash","args":"…"}
+{"event":"tool_result","tool":"bash","output":"…","error":false}
+{"event":"error","message":"…"}
+{"event":"done","steps":4,"tool_calls":3,"prompt_tokens":…,"output_tokens":…,"seconds":…}
+</pre>
+<h4>10.3 无头审批策略</h4>
+<p>无人值守默认<b>自动拒绝</b>并在 stderr 说明（附解决方式）；<code>OLLAMA_TUI_AGENT_APPROVE=1</code> 时每个工具自动批准一次。<code>resolveBackend</code> 发现的后端写回配置，CI 里第二次运行零探测开销。</p>
+</section>
+
+<!-- ================================================================ -->
+<section id="perf">
+<h3>11. 性能与并发设计</h3>
+<h4>11.1 为本地小模型做的优化（实测 qwen3.5:4b / RTX 4050）</h4>
+<table>
+  <tr><th>手段</th><th>效果</th></tr>
+  <tr><td><code>keep_alive</code> 模型常驻（默认 30m）</td><td>炉火不熄——跨回合零加载延迟</td></tr>
+  <tr><td>易变注入移到消息尾部</td><td>保住 Ollama 前缀缓存，多步 agent 壁钟 -22%</td></tr>
+  <tr><td>50ms deltaBuf 批量渲染 + (idx,size) 渲染缓存 + 会话前缀拼接缓存</td><td>53.8→53.6 tok/s，裸 curl 基线的 99.6%；长会话流式帧 19× 提速</td></tr>
+  <tr><td>紧凑系统提示（10 条规则 ≤1 屏）</td><td>长提示会显著劣化小模型指令跟随</td></tr>
+  <tr><td>上下文卫生：thinking 不回传 / 陈旧工具结果截断 / MaxToolLen 兜底</td><td>上下文留给有效信息</td></tr>
+  <tr><td>双通道工具解析 + 工具错误原文回传</td><td>不识原生通道的小模型也能干活，报错可自纠</td></tr>
+</table>
+<h4>11.2 并发组件清单</h4>
+<table>
+  <tr><th>组件</th><th>机制</th><th>保护</th></tr>
+  <tr><td>agent 循环</td><td>每回合一个 goroutine + 64 缓冲事件 channel</td><td>ctx 取消；channel 关闭即结束</td></tr>
+  <tr><td>TUI 流式 flusher</td><td>每回合一个 50ms ticker goroutine</td><td>回合结束先 cancel 再等 flushDone 关闭，不丢尾块</td></tr>
+  <tr><td>deltaBuf</td><td>互斥锁双视图（Total 累计 / Drain 尾部）</td><td>mu</td></tr>
+  <tr><td>Session</td><td>跨 goroutine 读写</td><td>RWMutex + Snapshot/Clone 拷贝出界</td></tr>
+  <tr><td>MemoryStore</td><td>文件读写</td><td>Mutex 串行 + tmp/rename 原子写</td></tr>
+  <tr><td>审批对话框</td><td>跨 goroutine 决策回传</td><td>容量 1 channel + Decide() recover</td></tr>
+  <tr><td>queuedSends</td><td>busy 时输入排队</td><td>单线程 UI 循环内，无锁</td></tr>
+</table>
+<p class="note">UI 线程模型：Bubble Tea 的 Update 是单线程的，所有 goroutine 一律通过 <code>prog.Send(msg)</code> 把结果投递回主循环处理 —— 业务 goroutine 里不直接碰任何 UI 状态。</p>
+</section>
+
+<div class="callout ok">想动手改代码？测试入口 <code>go test -race ./...</code>：agent 循环 mock 回放、SSE 分片、CRLF 编辑、并发压力都在里面；交叉编译检查 <code>GOOS=windows go build ./cmd/hearth ./cmd/hearth-agent</code>。</div>
+
+</div>
+
+<footer>
+  hearth <span class="fire">▲</span> 炉边 — v0.4.1 ·
+  <a href="https://github.com/firea/hearth">GitHub</a> ·
+  <a href="index.html">首页</a> · <a href="install.html">安装</a> · <a href="usage.html">使用</a> · <a href="agent.html">Agent</a> · <a href="config.html">配置</a>
+</footer>
+</body>
+</html>

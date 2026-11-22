@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安装 · hearth — 炉边</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <span class="logo">hearth<span class="cursor"></span></span>
+  <a class="item" href="index.html">首页</a>
+  <a class="item active" href="install.html">安装</a>
+  <a class="item" href="usage.html">使用指南</a>
+  <a class="item" href="agent.html">hearth-agent</a>
+  <a class="item" href="config.html">配置参考</a>
+  <a class="item" href="architecture.html">架构</a>
+  <span class="spacer"></span>
+  <a class="gh" href="https://github.com/firea/hearth" target="_blank">GitHub ↗</a>
+</nav>
+
+<div class="wrap">
+
+<h2>安装（Windows 优先）</h2>
+<p>两个独立二进制：<code>hearth</code>（交互式 TUI）与 <code>hearth-agent</code>（无头自动化），可分别安装。</p>
+
+<h3>Windows</h3>
+<pre>
+<span class="cmt"># 方式一：源码构建（产出 zip + sha256 到 dist\<版本>\）</span>
+<span class="hl">git</span> clone https://github.com/firea/hearth && <span class="hl">cd</span> hearth
+.<span class="hl">\scripts\build.ps1</span>            <span class="cmt"># 加 -All 构建全平台矩阵</span>
+
+<span class="cmt"># 方式二：把构建产物放进 PATH</span>
+<span class="hl">Copy-Item</span> dist\0.4.1\*.exe $env:USERPROFILE\bin\
+
+<span class="cmt"># 方式三：Scoop（发布后）</span>
+<span class="hl">scoop</span> bucket add hearth https://github.com/firea/hearth
+<span class="hl">scoop</span> install hearth           <span class="cmt"># 同时安装 hearth 与 hearth-agent</span>
+</pre>
+
+<h3>Windows 启动方式</h3>
+<p>Release 的 <code>*​_windows_amd64.zip</code> 内含全部所需文件：</p>
+<table>
+  <tr><th>方式</th><th>说明</th></tr>
+  <tr><td><code>双击 run-tui.cmd</code></td><td>自动打开 Windows Terminal（无 WT 时用 cmd）并启动界面</td></tr>
+  <tr><td><code>双击 run-agent.cmd</code></td><td>打开终端并显示 hearth-agent 用法示例</td></tr>
+  <tr><td><code>终端运行 hearth</code></td><td>解压后加入 PATH，直接运行</td></tr>
+</table>
+<div class="callout warn"><b>认准产物</b>：请解压 <code>*​_windows_*.zip</code> 里的 <code>.exe</code> —— linux/macOS 产物没有扩展名，双击会弹「选择打开方式」。</div>
+<div class="callout"><b>SmartScreen</b>：拦截时点「更多信息 → 仍要运行」，或 PowerShell 执行 <code>Unblock-File .\hearth.exe</code>。</div>
+<div class="callout"><b>报错不闪退</b>：双击 exe 遇错时窗口会保留（press Enter to close）。最常见原因是 Ollama 未启动 —— 先运行 <code>ollama serve</code>。</div>
+
+<h3>Linux / macOS</h3>
+<pre>
+<span class="hl">git</span> clone https://github.com/firea/hearth && <span class="hl">cd</span> hearth
+./<span class="hl">scripts/build.sh</span>
+<span class="hl">sudo cp</span> dist/0.4.1/hearth{,-agent}_linux_amd64 /usr/local/bin/
+<span class="cmt"># 或: go install ./cmd/hearth ./cmd/hearth-agent</span>
+</pre>
+
+<h2>启动与后端自动发现</h2>
+<pre>
+<span class="cmt"># 准备本地模型（任选一种本地后端）</span>
+<span class="hl">ollama</span> pull qwen3.5:4b
+
+<span class="hl">hearth</span>                          <span class="cmt"># 交互式 TUI</span>
+<span class="hl">hearth-agent</span> agent "统计行数" --yolo   <span class="cmt"># 无头自动化</span>
+<span class="hl">hearth-agent</span> ask "一句话解释 TCP"      <span class="cmt"># 单问</span>
+<span class="hl">hearth-agent</span> models              <span class="cmt"># 列出后端模型（含能力列）</span>
+</pre>
+<p>程序启动时按以下顺序解析后端：</p>
+<ol>
+  <li>配置文件中的 <code>ollama_url</code></li>
+  <li>自动探测常见本地端口：<b>Ollama :11434</b>（原生 + /v1）、LM Studio :1234、llama.cpp :8080、vLLM :8000、Jan :1337</li>
+  <li>找到后写回配置文件，下次启动秒连</li>
+</ol>
+<p>全部失败时 TUI 显示引导卡片（原因 + <code>ollama serve</code> 提示 + 检测命令 + <code>r</code> 重试）。</p>
+
+<h2>配置与迁移</h2>
+<table>
+  <tr><th>平台</th><th>配置文件</th><th>数据 / 会话</th></tr>
+  <tr><td>Windows</td><td><code>%AppData%\hearth\config.json</code></td><td><code>%AppData%\hearth\</code></td></tr>
+  <tr><td>Linux / macOS</td><td><code>~/.config/hearth/config.json</code></td><td><code>~/.local/share/hearth/</code></td></tr>
+</table>
+<div class="callout ok"><b>旧版迁移</b>：之前用 ollama-tui 的配置与会话会被自动沿用（旧路径回退），无需手动迁移。</div>
+<p>环境变量：<code>HEARTH_CONFIG</code> / <code>HEARTH_DATA</code>（旧 <code>OLLAMA_TUI_*</code> 兼容）。</p>
+
+<h2>从源码构建</h2>
+<p>依赖：Go 1.22+（无 CGO，纯静态）。</p>
+<pre>
+<span class="hl">go</span> build -o hearth ./cmd/hearth
+<span class="hl">go</span> build -o hearth-agent ./cmd/hearth-agent
+
+<span class="cmt"># 全平台矩阵（linux/darwin tar.gz；windows 走 build.ps1）</span>
+./<span class="hl">scripts/build.sh</span>
+</pre>
+<p>GitHub Releases 提供各平台 zip / tar.gz 与 SHA256 校验（<code>.github/workflows/release.yml</code> 自动构建）。</p>
+
+</div>
+
+<footer>
+  hearth <span class="fire" style="color:var(--ember)">▲</span> 炉边 — v0.4.1 ·
+  <a href="index.html">首页</a> · <a href="usage.html">使用指南</a> · <a href="agent.html">hearth-agent</a> · <a href="config.html">配置参考</a> · <a href="architecture.html">架构</a>
+</footer>
+</body>
+</html>

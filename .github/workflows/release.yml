@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # Windows-first product policy: windows targets listed first
+          - { os: windows-latest, goos: windows, goarch: amd64, ext: .exe, archive: zip }
+          - { os: windows-latest, goos: windows, goarch: arm64, ext: .exe, archive: zip }
+          - { os: ubuntu-latest, goos: linux, goarch: amd64, ext: "", archive: tar.gz }
+          - { os: ubuntu-latest, goos: linux, goarch: arm64, ext: "", archive: tar.gz }
+          - { os: macos-latest, goos: darwin, goarch: amd64, ext: "", archive: tar.gz }
+          - { os: macos-latest, goos: darwin, goarch: arm64, ext: "", archive: tar.gz }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SUFFIX="${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p dist
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+            -o "dist/hearth_${SUFFIX}${{ matrix.ext }}" ./cmd/hearth
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+            -o "dist/hearth-agent_${SUFFIX}${{ matrix.ext }}" ./cmd/hearth-agent
+      - name: Package (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $suffix = "${{ matrix.goos }}_${{ matrix.goarch }}"
+          Copy-Item packaging/windows/INSTALL.txt dist/
+          Copy-Item packaging/windows/run-tui.cmd dist/
+          Copy-Item packaging/windows/run-agent.cmd dist/
+          Compress-Archive -Path "dist/hearth_$suffix${{ matrix.ext }}", "dist/hearth-agent_$suffix${{ matrix.ext }}", `
+            "dist/INSTALL.txt", "dist/run-tui.cmd", "dist/run-agent.cmd" `
+            -DestinationPath "dist/hearth_$suffix.zip"
+      - name: Package (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          suffix="${{ matrix.goos }}_${{ matrix.goarch }}"
+          tar -czf "dist/hearth_${suffix}.tar.gz" -C dist \
+            "hearth_${suffix}${{ matrix.ext }}" "hearth-agent_${suffix}${{ matrix.ext }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.zip
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}-tgz
+          path: dist/*.tar.gz
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - name: Checksums
+        run: |
+          cd dist
+          # single checksums file covering every archive
+          sha256sum hearth_*.zip hearth_*.tar.gz > checksums.sha256 || true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/checksums.sha256
+          generate_release_notes: true

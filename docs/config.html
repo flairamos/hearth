@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>配置参考 · hearth — 炉边</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <span class="logo">hearth<span class="cursor"></span></span>
+  <a class="item" href="index.html">首页</a>
+  <a class="item" href="install.html">安装</a>
+  <a class="item" href="usage.html">使用指南</a>
+  <a class="item" href="agent.html">hearth-agent</a>
+  <a class="item active" href="config.html">配置参考</a>
+  <a class="item" href="architecture.html">架构</a>
+  <span class="spacer"></span>
+  <a class="gh" href="https://github.com/firea/hearth" target="_blank">GitHub ↗</a>
+</nav>
+
+<div class="wrap">
+
+<h2>配置参考</h2>
+<p>配置文件位置：Linux/macOS <code>~/.config/hearth/config.json</code>，Windows <code>%AppData%\hearth\config.json</code>。TUI 内 <code>/config</code> 用 <code>$EDITOR</code> 编辑，保存后热重载。</p>
+<div class="callout ok"><b>旧版迁移</b>：若存在旧版 ollama-tui 路径下的配置且新路径为空，会自动沿用旧配置；首次保存后写入新路径。</div>
+
+<h3>完整示例</h3>
+<pre>
+{
+  <span class="hl">"ollama_url"</span>: "http://localhost:11434",
+  <span class="hl">"api_style"</span>: "auto",
+  <span class="hl">"discovery"</span>: true,
+  <span class="hl">"default_model"</span>: "qwen3.5:4b",
+  <span class="hl">"theme"</span>: "dark",
+  <span class="hl">"generation"</span>: {
+    "temperature": 0.7, "top_p": 0.9, "top_k": 0,
+    "max_tokens": 4096, "think": true
+  },
+  <span class="hl">"context"</span>: {
+    "num_ctx": 16384, "auto_trim": true,
+    "auto_compact": true, "compact_at_pct": 85,
+    "keep_alive": "30m"
+  },
+  <span class="hl">"keymap"</span>: {
+    "palette": "ctrl+k", "sessions": "ctrl+p", "models": "alt+m",
+    "new_session": "ctrl+n", "toggle_agent": "alt+a", "toggle_think": "ctrl+t",
+    "toggle_sidebar": "ctrl+b", "access_mode": "ctrl+g", "copy_last": "ctrl+y"
+  },
+  <span class="hl">"system_prompt"</span>: "",
+  <span class="hl">"auto_title"</span>: true,
+  <span class="hl">"agent"</span>: {
+    "max_steps": 25, "permissions": "ask",
+    "auto_approve": [], "deny_patterns": [],
+    "bash_timeout_sec": 120, "temperature": 0.4,
+    "max_tool_result_chars": 8000,
+    "shell": "auto", "memory": true
+  },
+  <span class="hl">"search"</span>: { "engine": "bing", "searxng_url": "", "brave_key": "", "max_results": 5 },
+  <span class="hl">"commands"</span>: {},
+  <span class="hl">"model_favorites"</span>: [],
+  <span class="hl">"ui"</span>: { "sidebar": true }
+}
+</pre>
+
+<h3>字段说明</h3>
+<table>
+  <tr><th>字段</th><th>默认</th><th>说明</th></tr>
+  <tr><td><code>ollama_url</code></td><td><code>http://localhost:11434</code></td><td>后端地址；失效时自动探测常见端口并写回</td></tr>
+  <tr><td><code>api_style</code></td><td><code>auto</code></td><td><code>auto</code>（URL 以 /v1 结尾 → openai 风格）/ <code>ollama</code> / <code>openai</code></td></tr>
+  <tr><td><code>discovery</code></td><td><code>true</code></td><td>后端自动发现开关</td></tr>
+  <tr><td><code>default_model</code></td><td>空</td><td>空 = 取后端第一个模型</td></tr>
+  <tr><td><code>theme</code></td><td><code>dark</code></td><td><code>dark</code> / <code>dracula</code> / <code>light</code></td></tr>
+  <tr><td><code>generation.think</code></td><td><code>true</code></td><td>思考模式（qwen3.5 支持，输出独立 thinking 流）</td></tr>
+  <tr><td><code>generation.max_tokens</code></td><td><code>4096</code></td><td>num_predict 上限</td></tr>
+  <tr><td><code>context.num_ctx</code></td><td><code>16384</code></td><td>上下文窗口；qwen3.5 原生 256k，显存充足可调大（openai 风格下不可设）</td></tr>
+  <tr><td><code>context.auto_trim</code></td><td><code>true</code></td><td>接近上限自动裁剪最旧回合</td></tr>
+  <tr><td><code>context.auto_compact</code></td><td><code>true</code></td><td>达到 <code>compact_at_pct</code> 自动摘要压缩（保留尾部原文/草稿本/记忆）</td></tr>
+  <tr><td><code>context.keep_alive</code></td><td><code>30m</code></td><td>模型常驻时长（原生 API），<code>"-1"</code> 表示永久</td></tr>
+  <tr><td><code>keymap</code></td><td>—</td><td>快捷键重映射：动作名 → 键序列</td></tr>
+  <tr><td><code>system_prompt</code></td><td>空</td><td>全局 system prompt（会话级可覆盖）</td></tr>
+  <tr><td><code>auto_title</code></td><td><code>true</code></td><td>首条消息自动生成会话标题</td></tr>
+  <tr><td><code>agent.max_steps</code></td><td><code>25</code></td><td>工具步数预算（用尽自动追加无工具总结）</td></tr>
+  <tr><td><code>agent.permissions</code></td><td><code>ask</code></td><td><code>ask</code> / <code>risky</code> / <code>full</code>（旧值 standard/yolo 自动映射）</td></tr>
+  <tr><td><code>agent.auto_approve</code></td><td><code>[]</code></td><td>免审批工具名单</td></tr>
+  <tr><td><code>agent.deny_patterns</code></td><td><code>[]</code></td><td>自定义危险命令正则（任何档位强制询问）</td></tr>
+  <tr><td><code>agent.bash_timeout_sec</code></td><td><code>120</code></td><td>单条命令超时</td></tr>
+  <tr><td><code>agent.temperature</code></td><td><code>0.4</code></td><td>agent 模式温度（更低提升工具调用稳定性）</td></tr>
+  <tr><td><code>agent.max_tool_result_chars</code></td><td><code>8000</code></td><td>工具结果截断长度（陈旧结果进一步截为 1/3）</td></tr>
+  <tr><td><code>agent.shell</code></td><td><code>auto</code></td><td>Windows: PowerShell → cmd（bash 需显式指定）；unix: bash</td></tr>
+  <tr><td><code>agent.memory</code></td><td><code>true</code></td><td>长期记忆工具开关</td></tr>
+  <tr><td><code>search.engine</code></td><td><code>bing</code></td><td><code>bing</code> / <code>duckduckgo</code> / <code>searxng</code>（需 <code>searxng_url</code>）/ <code>brave</code>（需 <code>brave_key</code>）/ <code>none</code></td></tr>
+  <tr><td><code>commands</code></td><td><code>{}</code></td><td>自定义 prompt 模板命令：<code>{"名称": {"description":"…", "prompt":"…{{input}}…", "agent":false}}</code></td></tr>
+  <tr><td><code>model_favorites</code></td><td><code>[]</code></td><td>模型面板置顶（★）</td></tr>
+  <tr><td><code>ui.sidebar</code></td><td><code>true</code></td><td>侧栏默认开关（Ctrl+B）</td></tr>
+</table>
+
+<h3>环境变量</h3>
+<table>
+  <tr><th>变量</th><th>说明</th></tr>
+  <tr><td><code>HEARTH_CONFIG</code></td><td>配置文件路径覆盖</td></tr>
+  <tr><td><code>HEARTH_DATA</code></td><td>数据目录覆盖（会话/记忆）</td></tr>
+  <tr><td><code>HEARTH_AGENT_APPROVE=1</code></td><td>headless 下自动放行审批（每工具确认一次）</td></tr>
+  <tr><td><code>OLLAMA_TUI_CONFIG</code> / <code>OLLAMA_TUI_DATA</code> / <code>OLLAMA_TUI_AGENT_APPROVE</code></td><td>旧品牌变量，仍然兼容</td></tr>
+  <tr><td><code>EDITOR</code></td><td>/config 编辑器</td></tr>
+  </table>
+
+<h3>会话与记忆数据</h3>
+<table>
+  <tr><th>内容</th><th>位置</th></tr>
+  <tr><td>会话（含 note 草稿本等全部上下文）</td><td><code>&lt;数据目录&gt;/sessions/&lt;id&gt;.json</code>（原子写，含 agent 工具记录；note 短期记忆存其中的 <code>scratchpad</code> 字段）</td></tr>
+  <tr><td>长期记忆</td><td><code>&lt;数据目录&gt;/memory.md</code>（Markdown 可手改，去重，上限 500 条）</td></tr>
+  <tr><td>导出</td><td><code>/save</code> 默认写当前目录 <code>hearth-&lt;标题&gt;-&lt;id&gt;.md</code></td></tr>
+</table>
+<p><b>数据目录</b>（<code>HEARTH_DATA</code> 环境变量可整体覆盖）：Windows 为 <code>%AppData%\hearth\</code>，Linux/macOS 为 <code>~/.local/share/hearth</code>（或 <code>$XDG_DATA_HOME/hearth</code>）；若旧版 ollama-tui 的数据目录已存在则继续沿用，自动兼容无需迁移。架构细节见 <a href="architecture.html">架构文档</a> 8.6 节。</p>
+
+</div>
+
+<footer>
+  hearth <span class="fire" style="color:var(--ember)">▲</span> 炉边 — v0.4.1 ·
+  <a href="index.html">首页</a> · <a href="install.html">安装</a> · <a href="usage.html">使用指南</a> · <a href="agent.html">hearth-agent</a> · <a href="architecture.html">架构</a>
+</footer>
+</body>
+</html>

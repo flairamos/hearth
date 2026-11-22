@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hearth-agent · hearth — 炉边</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <span class="logo">hearth<span class="cursor"></span></span>
+  <a class="item" href="index.html">首页</a>
+  <a class="item" href="install.html">安装</a>
+  <a class="item" href="usage.html">使用指南</a>
+  <a class="item active" href="agent.html">hearth-agent</a>
+  <a class="item" href="config.html">配置参考</a>
+  <a class="item" href="architecture.html">架构</a>
+  <span class="spacer"></span>
+  <a class="gh" href="https://github.com/firea/hearth" target="_blank">GitHub ↗</a>
+</nav>
+
+<div class="wrap">
+
+<h2>hearth-agent — 无头自动化</h2>
+<p>独立二进制（~11MB），<b>零 TUI 依赖</b>：没有终端的服务器、CI 流水线、脚本里都能跑。与 TUI 共享同一套配置、后端自动发现与 agent 内核。</p>
+
+<pre>
+<span class="cmt"># 让 agent 干活（工作目录 -w，免审批 --yolo）</span>
+<span class="hl">hearth-agent</span> agent -m qwen3.5:4b -w ./myproject \
+  "统计 src 下所有 Go 文件的行数，写一个报告 report.md" --yolo
+
+<span class="cmt"># OpenAI 兼容后端</span>
+<span class="hl">hearth-agent</span> agent "检查 test.txt 是否包含 TODO" --api-style openai
+
+<span class="cmt"># CI / 脚本消费事件流（NDJSON）</span>
+<span class="hl">hearth-agent</span> agent "…" --json | jq 'select(.event=="done")'
+
+<span class="cmt"># 单问（无工具）</span>
+<span class="hl">hearth-agent</span> ask "一句话解释什么是 keep_alive"
+
+<span class="cmt"># 列出后端模型（含大小/量化/能力）</span>
+<span class="hl">hearth-agent</span> models
+</pre>
+
+<h3>命令与参数</h3>
+<table>
+  <tr><th>命令</th><th>参数</th></tr>
+  <tr><td><code>agent "task"</code></td><td>
+      <code>-m</code> 模型名 · <code>-w</code> 工作目录 · <code>--yolo</code> 免审批 ·
+      <code>--perm ask|risky|full</code> · <code>--max-steps</code> 步数预算 ·
+      <code>--json</code> NDJSON 事件 · <code>--show-thinking</code> 输出思考流 ·
+      <code>-url</code> 后端地址 · <code>-api-style ollama|openai</code></td></tr>
+  <tr><td><code>ask "question"</code></td><td><code>-m</code> · <code>-url</code> · <code>-api-style</code>（流式输出，末行显示吞吐统计）</td></tr>
+  <tr><td><code>models</code></td><td><code>-url</code> · <code>-api-style</code></td></tr>
+</table>
+
+<h3>内置工具（13 个）</h3>
+<table>
+  <tr><th>类别</th><th>工具</th><th>说明</th></tr>
+  <tr><td>读取</td><td><code>read_file</code> <code>list_dir</code> <code>glob</code> <code>grep</code></td><td>行号输出、二进制检测、RE2 正则、<code>**</code> 递归通配</td></tr>
+  <tr><td>计算</td><td><code>calculator</code></td><td>纯 Go 表达式求值：+ - * / % ^、sqrt/log/min/max…（无 shell 依赖）</td></tr>
+  <tr><td>记忆</td><td><code>note</code></td><td>会话草稿本（write/append/read），每步注入，模型始终可见</td></tr>
+  <tr><td>记忆</td><td><code>memory_save</code> <code>memory_recall</code></td><td>跨会话事实库（去重、上限 500 条），每回合自动注入最近 8 条</td></tr>
+  <tr><td>Web</td><td><code>web_fetch</code> <code>web_search</code></td><td>HTTP GET → 纯文本；Bing / DuckDuckGo / SearXNG / Brave</td></tr>
+  <tr><td>修改</td><td><code>write_file</code> <code>edit_file</code></td><td>唯一性校验（多匹配报错并给最接近行）、CRLF 安全</td></tr>
+  <tr><td>执行</td><td><code>bash</code></td><td>超时控制、exit code；Windows 自动选 PowerShell / Git Bash / cmd</td></tr>
+</table>
+
+<h3>access 权限三档</h3>
+<table>
+  <tr><th>档位</th><th>行为</th></tr>
+  <tr><td><code>ask</code></td><td>变更前询问：写文件 / 执行命令 / 写记忆全部弹审批</td></tr>
+  <tr><td><code>risky</code></td><td>有风险才询问：只读命令白名单（ls/cat/git status…含 PowerShell 别名）与工作目录内写入自动放行；其余询问</td></tr>
+  <tr><td><code>full</code></td><td>完全自主：全部自动执行</td></tr>
+</table>
+<div class="callout warn"><b>安全底线</b>：危险命令模式（rm -rf、sudo、<code>curl|sh</code>、git push -f、<code>del /s</code>、<code>format C:</code>、Remove-Item -Recurse 等）在<b>任何档位</b>（含 full / --yolo）都强制人工确认；headless 无人工时自动拒绝并回传给模型自纠。</div>
+<p>无人工环境可用 <code>OLLAMA_TUI_AGENT_APPROVE=1</code>（每工具确认一次）或 <code>--yolo</code> 完全放行。</p>
+
+<h3>--json 事件流</h3>
+<pre>
+{<span class="hl">"event":"tool_start"</span>, "tool":"bash", "args":"{\"command\":\"ls\"}"}
+{<span class="hl">"event":"tool_result"</span>, "tool":"bash", "output":"...", "error":false}
+{<span class="hl">"event":"content"</span>, "text":"## 完成\n..."}
+{<span class="hl">"event":"done"</span>, "steps":4, "tool_calls":3, "prompt_tokens":5172,
+ "output_tokens":515, "seconds":10.4, "interrupted":false}
+</pre>
+<p>配合 <code>jq</code> 即可把 agent 嵌入任何流水线。退出码：0 成功 / 1 失败 / 2 用法错误。</p>
+
+<h3>为本地小模型做的优化</h3>
+<ul>
+  <li>原生 <code>tool_calls</code> 通道优先，模型退化为文本输出时 <code>&lt;tool_call&gt;</code> 协议兜底解析</li>
+  <li>工具错误原文回传（含可用函数清单），实测模型据此自纠（factorial → 连乘表达式）</li>
+  <li>步数预算 + 剩余步数提醒；预算用尽自动追加一轮「无工具总结」收尾</li>
+  <li>上下文卫生：thinking 不回传、陈旧工具结果截断、超限自动裁剪重试、易变注入移到消息尾部保住前缀缓存</li>
+  <li>keep_alive 模型常驻 —— 多步任务壁钟 -22%，单轮吞吐达裸 API 上限的 99.6%</li>
+</ul>
+
+</div>
+
+<footer>
+  hearth <span class="fire" style="color:var(--ember)">▲</span> 炉边 — v0.4.1 ·
+  <a href="index.html">首页</a> · <a href="install.html">安装</a> · <a href="usage.html">使用指南</a> · <a href="config.html">配置参考</a> · <a href="architecture.html">架构</a>
+</footer>
+</body>
+</html>

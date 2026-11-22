@@ -1,0 +1,54 @@
+{
+  "ollama_url": "http://localhost:11434",
+  "api_style": "auto",
+  "default_model": "qwen3.5:4b",
+  "theme": "dark",
+  "generation": {
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 0,
+    "max_tokens": 4096,
+    "think": true
+  },
+  "context": {
+    "num_ctx": 16384,
+    "auto_trim": true,
+    "auto_compact": true,
+    "compact_at_pct": 85,
+    "keep_alive": "30m"
+  },
+  "keymap": {
+    "palette": "ctrl+k",
+    "sessions": "ctrl+p",
+    "models": "alt+m",
+    "new_session": "ctrl+n",
+    "toggle_agent": "alt+a",
+    "toggle_think": "ctrl+t",
+    "toggle_sidebar": "ctrl+b",
+    "access_mode": "ctrl+g",
+    "copy_last": "ctrl+y"
+  },
+  "system_prompt": "",
+  "auto_title": true,
+  "agent": {
+    "max_steps": 25,
+    "permissions": "ask",
+    "auto_approve": [],
+    "deny_patterns": [],
+    "bash_timeout_sec": 120,
+    "temperature": 0.4,
+    "max_tool_result_chars": 8000,
+    "shell": "auto",
+    "memory": true
+  },
+  "search": {
+    "engine": "bing",
+    "searxng_url": "",
+    "brave_key": "",
+    "max_results": 5
+  },
+  "model_favorites": [],
+  "ui": {
+    "sidebar": true
+  }
+}
