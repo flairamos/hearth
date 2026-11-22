@@ -26,7 +26,7 @@
    https://<你的用户名>.github.io/hearth/
    ```
 
-   （本仓库名为 `hearth`，则站点地址为 `https://firea.github.io/hearth/`）
+   （本仓库名为 `hearth`，则站点地址为 `https://flairamos.github.io/hearth/`）
 
 ## 首次部署检查清单
 

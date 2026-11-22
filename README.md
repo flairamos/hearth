@@ -49,14 +49,14 @@ Hearth 是运行在终端里的本地大模型工作台：交互式对话 + 无�
 
 ```powershell
 # 方式一：源码构建（产出 zip + sha256 到 dist\<版本>\）
-git clone https://github.com/firea/hearth && cd hearth
+git clone https://github.com/flairamos/hearth && cd hearth
 .\scripts\build.ps1            # 加 -All 构建全平台矩阵
 
 # 方式二：把构建产物放进 PATH
 Copy-Item dist\0.4.1\*.exe $env:USERPROFILE\bin\
 
 # 方式三：Scoop（发布后）
-scoop bucket add hearth https://github.com/firea/hearth
+scoop bucket add hearth https://github.com/flairamos/hearth
 scoop install hearth           # 同时安装 hearth 与 hearth-agent
 ```
 
@@ -70,7 +70,7 @@ scoop install hearth           # 同时安装 hearth 与 hearth-agent
 **Linux / macOS：**
 
 ```bash
-git clone https://github.com/firea/hearth && cd hearth
+git clone https://github.com/flairamos/hearth && cd hearth
 ./scripts/build.sh
 sudo cp dist/0.4.1/hearth{,-agent}_linux_amd64 /usr/local/bin/
 ```

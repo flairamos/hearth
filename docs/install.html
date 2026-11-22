@@ -16,7 +16,7 @@
   <a class="item" href="config.html">配置参考</a>
   <a class="item" href="architecture.html">架构</a>
   <span class="spacer"></span>
-  <a class="gh" href="https://github.com/firea/hearth" target="_blank">GitHub ↗</a>
+  <a class="gh" href="https://github.com/flairamos/hearth" target="_blank">GitHub ↗</a>
 </nav>
 
 <div class="wrap">
@@ -27,14 +27,14 @@
 <h3>Windows</h3>
 <pre>
 <span class="cmt"># 方式一：源码构建（产出 zip + sha256 到 dist\<版本>\）</span>
-<span class="hl">git</span> clone https://github.com/firea/hearth && <span class="hl">cd</span> hearth
+<span class="hl">git</span> clone https://github.com/flairamos/hearth && <span class="hl">cd</span> hearth
 .<span class="hl">\scripts\build.ps1</span>            <span class="cmt"># 加 -All 构建全平台矩阵</span>
 
 <span class="cmt"># 方式二：把构建产物放进 PATH</span>
 <span class="hl">Copy-Item</span> dist\0.4.1\*.exe $env:USERPROFILE\bin\
 
 <span class="cmt"># 方式三：Scoop（发布后）</span>
-<span class="hl">scoop</span> bucket add hearth https://github.com/firea/hearth
+<span class="hl">scoop</span> bucket add hearth https://github.com/flairamos/hearth
 <span class="hl">scoop</span> install hearth           <span class="cmt"># 同时安装 hearth 与 hearth-agent</span>
 </pre>
 
@@ -52,7 +52,7 @@
 
 <h3>Linux / macOS</h3>
 <pre>
-<span class="hl">git</span> clone https://github.com/firea/hearth && <span class="hl">cd</span> hearth
+<span class="hl">git</span> clone https://github.com/flairamos/hearth && <span class="hl">cd</span> hearth
 ./<span class="hl">scripts/build.sh</span>
 <span class="hl">sudo cp</span> dist/0.4.1/hearth{,-agent}_linux_amd64 /usr/local/bin/
 <span class="cmt"># 或: go install ./cmd/hearth ./cmd/hearth-agent</span>
