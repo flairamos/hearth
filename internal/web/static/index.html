@@ -32,6 +32,10 @@
       <textarea id="input" rows="3" placeholder="message…（Shift+Enter 换行 · @ 引用文件 · / 命令）"></textarea>
       <div id="metrics" class="dim"></div>
       <div class="bar-actions">
+        <button id="btn-img" title="附加图片">📷</button>
+        <input type="file" id="img-file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden">
+        <button id="btn-retry" title="重新生成上一个回答">🔄</button>
+        <button id="btn-export" title="导出会话为 Markdown">⬇</button>
         <span id="status" class="dim"></span>
         <span class="spacer"></span>
         <label class="agent-toggle"><input type="checkbox" id="agent-mode"> agent</label>

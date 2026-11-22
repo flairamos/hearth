@@ -2,8 +2,10 @@ package web
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -35,6 +37,9 @@ func (s *Server) mux() *http.ServeMux {
 	m.HandleFunc("POST /api/send", s.handleSend)
 	m.HandleFunc("POST /api/interrupt", s.handleInterrupt)
 	m.HandleFunc("POST /api/agent-mode", s.handleAgentMode)
+	m.HandleFunc("POST /api/retry", s.handleRetry)
+	m.HandleFunc("POST /api/img", s.handleImg)
+	m.HandleFunc("GET /api/export", s.handleExport)
 	m.HandleFunc("POST /api/approve", s.handleApprove)
 	return m
 }
@@ -177,7 +182,12 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if len(missing) > 0 {
 		s.broadcastEvent("notice", "missing files: "+strings.Join(missing, ", "), nil)
 	}
-	if err := s.startTurn(req.Text, refs); err != nil {
+	s.mu.Lock()
+	s.sess.AgentMode = req.Agent
+	images := s.pendingImages
+	s.pendingImages = nil
+	s.mu.Unlock()
+	if err := s.startTurn(req.Text, refs, images); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
@@ -500,6 +510,117 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true})
+}
+
+// handleRetry pops the last user turn and re-runs it.
+func (s *Server) handleRetry(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	sess := s.sess
+	s.mu.Unlock()
+	text, ok := sess.PopLastUserTurn()
+	if !ok {
+		http.Error(w, "nothing to retry", http.StatusBadRequest)
+		return
+	}
+	sess.TrimToMax(sess.NumCtx(s.cfg.Context.NumCtx))
+	_ = s.store.Save(sess)
+	s.broadcastEvent("reset", "", nil)
+	if err := s.startTurn(text, nil, nil); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+// handleImg accepts an image upload (multipart "file", ≤8MB) and attaches
+// it to the next message.
+func (s *Server) handleImg(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 8<<20)
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "missing file field", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !isImageUpload(data) {
+		http.Error(w, "only png/jpeg/webp/gif images are supported", http.StatusUnsupportedMediaType)
+		return
+	}
+	s.mu.Lock()
+	s.pendingImages = append(s.pendingImages, base64.StdEncoding.EncodeToString(data))
+	n := len(s.pendingImages)
+	s.mu.Unlock()
+	writeJSON(w, map[string]any{"ok": true, "count": n})
+}
+
+func isImageUpload(data []byte) bool {
+	if len(data) < 8 {
+		return false
+	}
+	png := []byte{0x89, 'P', 'N', 'G'}
+	if string(data[:4]) == string(png) {
+		return true
+	}
+	if data[0] == 0xFF && data[1] == 0xD8 {
+		return true
+	}
+	if string(data[:4]) == "RIFF" && len(data) >= 12 && string(data[8:12]) == "WEBP" {
+		return true
+	}
+	return strings.HasPrefix(string(data), "GIF8")
+}
+
+// handleExport downloads the active session as Markdown.
+func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	sess := s.sess
+	s.mu.Unlock()
+	md := tui.ExportMarkdown(sess)
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf("attachment; filename=\"hearth-%s-%s.md\"", sanitizeName(sess.Title), sess.ID))
+	_, _ = w.Write([]byte(md))
+}
+
+func sanitizeName(s string) string {
+	s = strings.TrimSpace(s)
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			b.WriteRune(r)
+		case r == ' ':
+			b.WriteRune('-')
+		}
+	}
+	out := b.String()
+	if len(out) > 40 {
+		out = out[:40]
+	}
+	if out == "" {
+		out = "chat"
+	}
+	return out
+}
+
+// retryTurn pops the last user turn and re-runs it (web /retry).
+func (s *Server) retryTurn() error {
+	s.mu.Lock()
+	sess := s.sess
+	s.mu.Unlock()
+	text, ok := sess.PopLastUserTurn()
+	if !ok {
+		return fmt.Errorf("nothing to retry")
+	}
+	sess.TrimToMax(sess.NumCtx(s.cfg.Context.NumCtx))
+	_ = s.store.Save(sess)
+	s.broadcastEvent("reset", "", nil)
+	return s.startTurn(text, nil, nil)
 }
 
 // handleEvents streams turn events as Server-Sent Events.

@@ -46,6 +46,21 @@ func (a *App) commandList() []command {
 			}},
 		{name: "new", alias: []string{"n"}, desc: "new session", run: func(a *App, _ string) error { a.newSession(); return nil }},
 		{name: "sessions", alias: []string{"s"}, desc: "session list", run: func(a *App, _ string) error { a.openSessionPanel(); return nil }},
+		{name: "search", usage: "<query>", desc: "search sessions (title + content)", run: func(a *App, args string) error {
+			args = strings.TrimSpace(args)
+			if args == "" {
+				a.openSessionPanel()
+				return nil
+			}
+			matches := a.store.SearchSessions(args)
+			var items []item
+			for _, m := range matches {
+				items = append(items, item{title: m.Title, desc: fmt.Sprintf("%s · %d msgs", m.Model, m.MsgCount), data: m.ID})
+			}
+			a.panelLst = newListPanel(panelSession, fmt.Sprintf("search: %q (%d matches)", args, len(items)), items)
+			a.panel = panelSession
+			return nil
+		}},
 		{name: "provider", usage: "[name]", desc: "switch provider (local/remote profiles)", run: func(a *App, args string) error {
 			args = strings.TrimSpace(args)
 			if args != "" {

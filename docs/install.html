@@ -31,7 +31,7 @@
 .<span class="hl">\scripts\build.ps1</span>            <span class="cmt"># 加 -All 构建全平台矩阵</span>
 
 <span class="cmt"># 方式二：把构建产物放进 PATH</span>
-<span class="hl">Copy-Item</span> dist\0.4.1\*.exe $env:USERPROFILE\bin\
+<span class="hl">Copy-Item</span> dist\0.4.2\*.exe $env:USERPROFILE\bin\
 
 <span class="cmt"># 方式三：Scoop（发布后）</span>
 <span class="hl">scoop</span> bucket add hearth https://github.com/flairamos/hearth
@@ -54,7 +54,7 @@
 <pre>
 <span class="hl">git</span> clone https://github.com/flairamos/hearth && <span class="hl">cd</span> hearth
 ./<span class="hl">scripts/build.sh</span>
-<span class="hl">sudo cp</span> dist/0.4.1/hearth{,-agent}_linux_amd64 /usr/local/bin/
+<span class="hl">sudo cp</span> dist/0.4.2/hearth{,-agent}_linux_amd64 /usr/local/bin/
 <span class="cmt"># 或: go install ./cmd/hearth ./cmd/hearth-agent</span>
 </pre>
 
@@ -99,7 +99,7 @@
 </div>
 
 <footer>
-  hearth <span class="fire" style="color:var(--ember)">▲</span> 炉边 — v0.4.1 ·
+  hearth <span class="fire" style="color:var(--ember)">▲</span> 炉边 — v0.4.2 ·
   <a href="index.html">首页</a> · <a href="usage.html">使用指南</a> · <a href="agent.html">hearth-agent</a> · <a href="config.html">配置参考</a> · <a href="architecture.html">架构</a>
 </footer>
 </body>

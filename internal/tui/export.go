@@ -14,7 +14,7 @@ import (
 )
 
 // exportMarkdown renders a session as a Markdown file.
-func exportMarkdown(sess *core.Session) string {
+func ExportMarkdown(sess *core.Session) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", sess.Title)
 	fmt.Fprintf(&b, "- model: `%s`\n", sess.Model)
@@ -61,7 +61,7 @@ func saveSessionFile(sess *core.Session, path string) (string, error) {
 	if !strings.HasSuffix(strings.ToLower(path), ".md") {
 		path += ".md"
 	}
-	if err := os.WriteFile(path, []byte(exportMarkdown(sess)), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(ExportMarkdown(sess)), 0o644); err != nil {
 		return "", err
 	}
 	return path, nil

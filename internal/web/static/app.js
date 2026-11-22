@@ -1,6 +1,7 @@
 /* hearth web GUI — vanilla JS, no dependencies */
 const $ = (id) => document.getElementById(id);
 let sessionId = null, busy = false, agentMode = false, es = null;
+let pendingImgs = 0;
 let live = null; // streaming message element
 
 function esc(s) {
@@ -87,9 +88,11 @@ function startEvents() {
     const ev = JSON.parse(e.data);
     switch (ev.type) {
       case "user":
-        addMsg("user", ev.text);
+        addMsg("user", ev.text + (ev.images ? `  📎 图片 ×${ev.images}` : ""));
         live = addMsg("assistant", "");
         live.querySelector(".body").classList.add("cursor-live");
+        pendingImgs = 0;
+        updateInfo();
         break;
       case "thinking":
       case "delta": {
@@ -224,6 +227,30 @@ async function updateInfo() {
   $("side-info").textContent = `model: ${st.model || "-"}\nprovider: ${st.provider}\nmode: ${st.agentMode ? "agent" : "chat"}`;
   $("side-info").style.whiteSpace = "pre-wrap";
 }
+
+$("btn-img").onclick = () => $("img-file").click();
+$("img-file").onchange = async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append("file", f);
+  const res = await fetch("/api/img", { method: "POST", body: fd });
+  if (res.ok) {
+    const out = await res.json();
+    pendingImgs = out.count;
+    $("status").textContent = `📎 图片已附加 ×${out.count}`;
+  } else {
+    $("status").textContent = "⚠ 图片附加失败(仅 png/jpeg/webp/gif,≤8MB)";
+  }
+  e.target.value = "";
+};
+$("btn-retry").onclick = async () => {
+  if (busy) return;
+  await fetch("/api/retry", { method: "POST" });
+};
+$("btn-export").onclick = () => {
+  window.open("/api/export", "_blank");
+};
 
 $("agent-mode").onchange = async (e) => {
   await fetch("/api/agent-mode", {

@@ -6,12 +6,12 @@
   "notes": "Two independent binaries: hearth (interactive TUI) and hearth-agent (headless). Config at %AppData%\\hearth\\config.json",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/firea/hearth/releases/download/v0.4.1/hearth_windows_amd64.zip",
-      "hash": "https://github.com/firea/hearth/releases/download/v0.4.1/checksums.sha256"
+      "url": "https://github.com/firea/hearth/releases/download/v0.4.2/hearth_windows_amd64.zip",
+      "hash": "https://github.com/firea/hearth/releases/download/v0.4.2/checksums.sha256"
     },
     "arm64": {
-      "url": "https://github.com/firea/hearth/releases/download/v0.4.1/hearth_windows_arm64.zip",
-      "hash": "https://github.com/firea/hearth/releases/download/v0.4.1/checksums.sha256"
+      "url": "https://github.com/firea/hearth/releases/download/v0.4.2/hearth_windows_arm64.zip",
+      "hash": "https://github.com/firea/hearth/releases/download/v0.4.2/checksums.sha256"
     }
   },
   "bin": [

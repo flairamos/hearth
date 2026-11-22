@@ -110,6 +110,37 @@ func (s *Store) List() ([]SessionMeta, error) {
 	return out, nil
 }
 
+// SearchSessions scans sessions for a query match in title or message
+// content (case-insensitive substring), newest first.
+func (s *Store) SearchSessions(query string) []SessionMeta {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return nil
+	}
+	list, err := s.List()
+	if err != nil {
+		return nil
+	}
+	var out []SessionMeta
+	for _, m := range list {
+		sess, err := s.Load(m.ID)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(strings.ToLower(sess.Title), q) {
+			out = append(out, m)
+			continue
+		}
+		for _, msg := range sess.Snapshot() {
+			if strings.Contains(strings.ToLower(msg.Content), q) {
+				out = append(out, m)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // Latest returns the most recently updated session, if any.
 func (s *Store) Latest() (*core.Session, error) {
 	list, err := s.List()

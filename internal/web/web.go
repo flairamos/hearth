@@ -41,7 +41,8 @@ type Server struct {
 	busy           bool
 	gen            *webGen
 	pending        map[string]*agent.ApprovalRequest
-	activeProvider string // "" = local backend
+	pendingImages  []string // attached via /api/img, consumed on the next send
+	activeProvider string   // "" = local backend
 
 	hubMu sync.Mutex
 	subs  map[chan []byte]struct{}
@@ -185,7 +186,7 @@ func (s *Server) decideApproval(id string, dec agent.ApprovalDecision) bool {
 
 // ---- turn runner (chat + agent), mirroring the TUI glue ----
 
-func (s *Server) startTurn(text string, refs []core.FileRef) error {
+func (s *Server) startTurn(text string, refs []core.FileRef, images []string) error {
 	s.mu.Lock()
 	if s.busy {
 		s.mu.Unlock()
@@ -195,7 +196,7 @@ func (s *Server) startTurn(text string, refs []core.FileRef) error {
 	if s.cfg.Context.AutoTrim && s.sess.UsedTokens() > numCtx*90/100 {
 		s.sess.TrimToMax(numCtx)
 	}
-	s.sess.Add(core.Message{Role: core.RoleUser, Content: text, Refs: refs})
+	s.sess.Add(core.Message{Role: core.RoleUser, Content: text, Refs: refs, Images: images})
 	s.sess.AutoTitle()
 	_ = s.store.Save(s.sess)
 	s.busy = true
@@ -207,7 +208,7 @@ func (s *Server) startTurn(text string, refs []core.FileRef) error {
 	client := s.client
 	s.mu.Unlock()
 
-	s.broadcastEvent("user", text, nil)
+	s.broadcastEvent("user", text, map[string]any{"images": len(images)})
 
 	// live metrics: ctx usage + streaming rate, every 500ms
 	go func() {

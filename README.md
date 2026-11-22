@@ -70,7 +70,7 @@ git clone https://github.com/flairamos/hearth && cd hearth
 .\scripts\build.ps1            # 加 -All 构建全平台矩阵
 
 # 方式二：把构建产物放进 PATH
-Copy-Item dist\0.4.1\*.exe $env:USERPROFILE\bin\
+Copy-Item dist\0.4.2\*.exe $env:USERPROFILE\bin\
 
 # 方式三：Scoop（发布后）
 scoop bucket add hearth https://github.com/flairamos/hearth
@@ -89,7 +89,7 @@ scoop install hearth           # 同时安装 hearth 与 hearth-agent
 ```bash
 git clone https://github.com/flairamos/hearth && cd hearth
 ./scripts/build.sh
-sudo cp dist/0.4.1/hearth{,-agent}_linux_amd64 /usr/local/bin/
+sudo cp dist/0.4.2/hearth{,-agent}_linux_amd64 /usr/local/bin/
 ```
 
 **启动**（内置后端自动发现）：

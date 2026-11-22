@@ -69,3 +69,8 @@ body { background: var(--bg); color: var(--text); font: 14px/1.55 "Cascadia Code
 
 .msg.assistant .body .content { display: inline; }
 .msg.assistant .body .content:empty::before { content: "…"; color: var(--dim); }
+
+.bar-actions button.icon { background: none; border: 1px solid var(--border); padding: 4px 8px; font-size: 14px; }
+.bar-actions button.icon:hover { border-color: var(--ember); }
+#img-file.hidden { display: none; }
+.msg.notice { color: var(--dim); font-size: 13px; }
