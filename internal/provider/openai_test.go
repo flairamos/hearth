@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -183,5 +184,41 @@ func TestOpenAIRequestTranslation(t *testing.T) {
 	}
 	if os.Getenv("FAIL") != "" {
 		t.Skip()
+	}
+}
+
+// TestOpenAIAuthorizationHeader verifies hosted-provider auth: the bearer
+// token goes out on every request when a key is set, and never without one.
+func TestOpenAIAuthorizationHeader(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"x","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`)
+	}))
+	defer srv.Close()
+
+	c := NewWithKey(srv.URL, "openai", "sk-secret")
+	if _, err := c.Chat(context.Background(), ollama.ChatRequest{
+		Model:    "m",
+		Messages: []ollama.Message{{Role: "user", Content: "hi"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 || got[0] != "Bearer sk-secret" {
+		t.Fatalf("Authorization header missing/wrong: %q", got)
+	}
+
+	// local openai-compatible backend without a key: no header at all
+	got = nil
+	c2 := NewWithKey(srv.URL, "openai", "")
+	if _, err := c2.Chat(context.Background(), ollama.ChatRequest{
+		Model:    "m",
+		Messages: []ollama.Message{{Role: "user", Content: "hi"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != "" {
+		t.Fatalf("unexpected auth header without key: %q", got)
 	}
 }

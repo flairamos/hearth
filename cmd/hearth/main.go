@@ -19,6 +19,7 @@ import (
 	"hearth/internal/store"
 	"hearth/internal/tui"
 	"hearth/internal/version"
+	"hearth/internal/web"
 )
 
 func main() {
@@ -65,6 +66,9 @@ func runTUI(args []string) {
 	sessionID := fs.String("s", "", "resume session id")
 	modelFlag := fs.String("m", "", "model override")
 	styleFlag := fs.String("api-style", "", "api style override: ollama | openai")
+	webFlag := fs.Bool("web", false, "browser GUI on localhost instead of the TUI")
+	addrFlag := fs.String("addr", "127.0.0.1:8787", "web UI listen address")
+	noOpen := fs.Bool("no-open", false, "do not open the browser automatically")
 	_ = fs.Parse(args)
 
 	cfg, err := config.Load()
@@ -80,6 +84,24 @@ func runTUI(args []string) {
 	}
 	if *modelFlag != "" {
 		cfg.DefaultModel = *modelFlag
+	}
+
+	if *webFlag {
+		st, err := store.New(config.SessionsDir())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "storage error:", err)
+			os.Exit(1)
+		}
+		srv, err := web.New(cfg, st)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "web error:", err)
+			os.Exit(1)
+		}
+		if err := srv.Run(*addrFlag, !*noOpen); err != nil {
+			fmt.Fprintln(os.Stderr, "web server:", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	// backend resolution: config URL first, then auto-discovery of the

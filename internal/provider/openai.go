@@ -19,16 +19,25 @@ import (
 // (Ollama /v1, LM Studio, llama.cpp server, vLLM, ...). Requests and
 // responses are translated to/from the ollama package's canonical types.
 type openAIClient struct {
-	base  string // without /v1
-	style string
-	http  *http.Client
+	base   string // without /v1
+	style  string
+	apiKey string // bearer token for hosted providers ("" = local)
+	http   *http.Client
 }
 
-func newOpenAIClient(base, style string) *openAIClient {
-	return &openAIClient{base: base, style: style, http: &http.Client{Timeout: 0}}
+func newOpenAIClient(base, style, apiKey string) *openAIClient {
+	return &openAIClient{
+		apiKey: apiKey, base: base, style: style, http: &http.Client{Timeout: 0}}
 }
 
 func (c *openAIClient) url(path string) string { return c.base + "/v1" + path }
+
+// authorize adds the bearer token for hosted providers (no-op without a key).
+func (c *openAIClient) authorize(req *http.Request) {
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+}
 
 // ---- wire types ----
 
@@ -323,6 +332,7 @@ func (c *openAIClient) streamOnce(ctx context.Context, wire oaRequest, fn func(o
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.authorize(req)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
@@ -397,6 +407,7 @@ func (c *openAIClient) Chat(ctx context.Context, req ollama.ChatRequest) (ollama
 		return ollama.ChatResponse{}, err
 	}
 	req2.Header.Set("Content-Type", "application/json")
+	c.authorize(req2)
 	resp, err := c.http.Do(req2)
 	if err != nil {
 		return ollama.ChatResponse{}, err
@@ -451,6 +462,8 @@ func (c *openAIClient) Tags(ctx context.Context) ([]ollama.ModelInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.authorize(req)
+	c.authorize(req)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err

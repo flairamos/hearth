@@ -24,6 +24,14 @@
 <h2>使用指南（hearth TUI）</h2>
 <p>启动 <code>hearth</code> 进入交互式界面。顶部为标题栏（模型 / 会话标题 / 模式徽章 / ctx 占用 / 连接状态），底部为输入框与状态栏（生成中显示实时 <code>~tok/s</code>，完成后显示 <code>⚡ tok/s · last Xs</code> 服务端精确值）。</p>
 
+<h3>浏览器 GUI（--web）</h3>
+<ul>
+  <li><code>hearth --web</code> 在 <code>localhost:8787</code> 启动本地 Web 界面并自动打开浏览器（<code>-addr</code> 改端口 · <code>-no-open</code> 不自动打开）</li>
+  <li>会话侧栏（新建/切换）、流式 Markdown 对话、工具调用卡片、agent 审批对话框、ctx/tps 指标条</li>
+  <li>斜杠命令与 <code>@</code> 文件引用同 TUI：输入 <code>/</code> 弹出命令列表（↑↓ 选择 · Enter 执行），输入 <code>@</code> 弹出文件选择器</li>
+  <li>仅监听 127.0.0.1——数据不出机器；同一会话与 TUI 完全互通</li>
+</ul>
+
 <h3>快捷键</h3>
 <table>
   <tr><th>键</th><th>功能</th><th>键</th><th>功能</th></tr>
@@ -44,6 +52,7 @@
 <table>
   <tr><th>命令</th><th>说明</th></tr>
   <tr><td><code>/model [name]</code></td><td>切换模型（无参数打开选择面板）</td></tr>
+  <tr><td><code>/provider [name]</code></td><td>切换服务商：本地后端 ↔ 云端档案（GLM / DeepSeek / Qwen…，在 config.json 的 <code>providers</code> 中配置）；切到云端时提示文件内容将上传</td></tr>
   <tr><td><code>/new</code> · <code>/sessions</code></td><td>新建会话 · 会话列表（d 删除 / r 重命名）</td></tr>
   <tr><td><code>/clear</code></td><td>删除当前会话（消息、草稿本、保存文件，需确认），随后自动开新会话</td></tr>
   <tr><td><code>/system &lt;prompt&gt;</code></td><td>设置会话 system prompt（持久）</td></tr>

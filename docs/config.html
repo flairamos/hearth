@@ -68,6 +68,8 @@
   <tr><th>字段</th><th>默认</th><th>说明</th></tr>
   <tr><td><code>ollama_url</code></td><td><code>http://localhost:11434</code></td><td>后端地址；失效时自动探测常见端口并写回</td></tr>
   <tr><td><code>api_style</code></td><td><code>auto</code></td><td><code>auto</code>（URL 以 /v1 结尾 → openai 风格）/ <code>ollama</code> / <code>openai</code></td></tr>
+  <tr><td><code>providers</code></td><td>—</td><td>云端服务商档案：<code>{"名称": {"url", "api_key", "model"}}</code>；<code>api_key</code> 支持 <code>$环境变量</code> 引用避免明文；OpenAI 兼容端点（GLM / DeepSeek / Qwen / 方舟…）</td></tr>
+  <tr><td><code>active_provider</code></td><td><code>""</code></td><td>当前生效的服务商档案；<code>""</code> = 本地后端；<code>/provider</code> 切换</td></tr>
   <tr><td><code>discovery</code></td><td><code>true</code></td><td>后端自动发现开关</td></tr>
   <tr><td><code>default_model</code></td><td>空</td><td>空 = 取后端第一个模型</td></tr>
   <tr><td><code>theme</code></td><td><code>dark</code></td><td><code>dark</code> / <code>dracula</code> / <code>light</code></td></tr>

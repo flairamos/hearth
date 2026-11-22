@@ -30,6 +30,7 @@ type AgentOptions struct {
 	ShowThink bool   // stream thinking to stderr
 	URL       string // ollama base url override
 	APIStyle  string // ollama | openai | auto
+	Provider  string // config provider profile (remote OpenAI-compatible)
 }
 
 // apiStyleFor resolves the effective API style (CLI flag wins over config).
@@ -96,6 +97,21 @@ func RunAgent(opts AgentOptions) int {
 	cfg.APIStyle = apiStyleFor(cfg, opts.APIStyle)
 	client := resolveBackend(cfg)
 	model := opts.Model
+	if opts.Provider != "" {
+		p, ok := cfg.Providers[opts.Provider]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "unknown provider: %s (known: local", opts.Provider)
+			for n := range cfg.Providers {
+				fmt.Fprintf(os.Stderr, " %s", n)
+			}
+			fmt.Fprintln(os.Stderr, ")")
+			return 1
+		}
+		client = provider.NewWithKey(p.URL, "openai", p.ResolvedKey())
+		if p.Model != "" && model == "" {
+			model = p.Model
+		}
+	}
 	if model == "" {
 		model = cfg.DefaultModel
 	}

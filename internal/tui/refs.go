@@ -17,7 +17,7 @@ import (
 var refPattern = regexp.MustCompile(`@([^\s@#]+)(?:#L?(\d+)-(\d+))?`)
 
 // workspaceFiles gathers candidate files for the @ picker (relative paths).
-func workspaceFiles(root string, cap int) []string {
+func WorkspaceFiles(root string, cap int) []string {
 	if cap <= 0 {
 		cap = 500
 	}
@@ -56,7 +56,7 @@ func workspaceFiles(root string, cap int) []string {
 // collectRefs snapshots "@path" and "@path#L121-135" tokens from the user's
 // text. The display text stays as typed; the API layer appends the content
 // blocks from the stored Refs so history stays reproducible.
-func collectRefs(text, workDir string) ([]core.FileRef, []string) {
+func CollectRefs(text, workDir string) ([]core.FileRef, []string) {
 	ms := refPattern.FindAllStringSubmatch(text, -1)
 	if len(ms) == 0 {
 		return nil, nil
@@ -91,13 +91,8 @@ func collectRefs(text, workDir string) ([]core.FileRef, []string) {
 }
 
 // refContextBlock renders one file ref as model context.
-func refContextBlock(r core.FileRef) string {
-	label := r.Path
-	if r.Start > 0 {
-		label = fmt.Sprintf("%s#L%d-%d", r.Path, r.Start, r.End)
-	}
-	return fmt.Sprintf("[file: %s]\n%s", label, r.Content)
-}
+// RefContextBlock delegates to core (shared with the agent + web layers).
+func RefContextBlock(r core.FileRef) string { return core.RefContextBlock(r) }
 
 func readRefFile(path string, start, end, maxChars int) (string, error) {
 	data, err := os.ReadFile(path)

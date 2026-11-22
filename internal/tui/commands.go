@@ -46,6 +46,15 @@ func (a *App) commandList() []command {
 			}},
 		{name: "new", alias: []string{"n"}, desc: "new session", run: func(a *App, _ string) error { a.newSession(); return nil }},
 		{name: "sessions", alias: []string{"s"}, desc: "session list", run: func(a *App, _ string) error { a.openSessionPanel(); return nil }},
+		{name: "provider", usage: "[name]", desc: "switch provider (local/remote profiles)", run: func(a *App, args string) error {
+			args = strings.TrimSpace(args)
+			if args != "" {
+				a.switchProvider(args)
+				return nil
+			}
+			a.openProviderPanel()
+			return nil
+		}},
 		{name: "clear", desc: "delete this session (messages + file, needs confirm)", run: func(a *App, _ string) error {
 			if a.busy() {
 				a.toastf("busy — esc to interrupt first")

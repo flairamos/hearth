@@ -403,6 +403,15 @@ func (a *Agent) apiMessages() []ollama.Message {
 		}
 		switch m.Role {
 		case core.RoleUser:
+			// @file refs: attach the snapshotted content blocks (same as the
+			// TUI chat path — without this the agent silently drops them)
+			if len(m.Refs) > 0 {
+				var blocks []string
+				for _, r := range m.Refs {
+					blocks = append(blocks, core.RefContextBlock(r))
+				}
+				content = content + "\n\n" + strings.Join(blocks, "\n\n")
+			}
 			out = append(out, ollama.Message{Role: "user", Content: content, Images: m.Images})
 		case core.RoleAssistant:
 			om := ollama.Message{Role: "assistant", Content: content}

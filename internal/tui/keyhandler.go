@@ -295,7 +295,7 @@ func (a *App) submitInput() tea.Cmd {
 	var refs []core.FileRef
 	if strings.Contains(v, "@") {
 		var missing []string
-		refs, missing = collectRefs(v, a.workDir)
+		refs, missing = CollectRefs(v, a.workDir)
 		if len(missing) > 0 {
 			a.toastf("missing: %s", strings.Join(missing, ", "))
 		}
@@ -371,15 +371,19 @@ func (a *App) listKey(msg tea.KeyMsg, key string) (tea.Model, tea.Cmd) {
 					a.toastf("%v", err)
 				}
 			}
+		case panelProvider:
+			if name, ok := it.data.(string); ok {
+				a.switchProvider(name)
+			}
 		case panelFile:
-				if path, ok := it.data.(string); ok {
-					// complete the seeded "@" into "@path " — a trailing bare
-					// @ (the picker trigger) is replaced, not duplicated
-					base := strings.TrimSuffix(a.ta.Value(), "@")
-					a.ta.SetValue(base + "@" + path + " ")
-					a.ta.CursorEnd()
-					a.toastf("attached %s — append #L121-135 for a line range", path)
-				}
+			if path, ok := it.data.(string); ok {
+				// complete the seeded "@" into "@path " — a trailing bare
+				// @ (the picker trigger) is replaced, not duplicated
+				base := strings.TrimSuffix(a.ta.Value(), "@")
+				a.ta.SetValue(base + "@" + path + " ")
+				a.ta.CursorEnd()
+				a.toastf("attached %s — append #L121-135 for a line range", path)
+			}
 		}
 		a.refreshContent()
 		return a, nil

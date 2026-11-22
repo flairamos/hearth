@@ -45,11 +45,17 @@ func StyleFor(url, style string) string {
 //	base "http://localhost:11434/v1"   style auto    → openai compatible
 //	base "http://host:1234"            style openai  → http://host:1234/v1
 func New(baseURL, style string) Client {
+	return NewWithKey(baseURL, style, "")
+}
+
+// NewWithKey is New with a bearer token for OpenAI-compatible providers
+// (GLM, DeepSeek, DashScope, Volcengine Ark ...).
+func NewWithKey(baseURL, style, apiKey string) Client {
 	style = normalizeStyle(baseURL, style)
 	switch style {
 	case "openai":
 		base := strings.TrimSuffix(strings.TrimRight(baseURL, "/"), "/v1")
-		return newOpenAIClient(base, style)
+		return newOpenAIClient(base, style, apiKey)
 	default:
 		base := strings.TrimRight(baseURL, "/")
 		base = strings.TrimSuffix(base, "/v1") // tolerate /v1 in ollama mode

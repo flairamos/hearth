@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -96,6 +97,8 @@ type App struct {
 	lastStats turnStats
 	lastError string // most recent agent error, kept for the status bar
 
+	activeProvider string // "" = local backend; name of the provider profile otherwise
+
 	ta            textarea.Model
 	vp            viewport.Model
 	helpVp        viewport.Model
@@ -175,12 +178,71 @@ func New(cfg *config.Config, client provider.Client, st *store.Store, resumeID s
 	app.ta.KeyMap.InsertNewline.SetKeys("alt+enter", "ctrl+j")
 	app.ta.Focus()
 	app.vp = viewport.New(80, 20)
+	// an active remote provider profile overrides the local backend client
+	if cfg.ActiveProvider != "" {
+		if p, ok := cfg.Providers[cfg.ActiveProvider]; ok {
+			app.client = provider.NewWithKey(p.URL, "openai", p.ResolvedKey())
+			app.activeProvider = cfg.ActiveProvider
+			if p.Model != "" {
+				app.sess.Model = p.Model
+			}
+		}
+	}
 	return app, nil
+}
+
+// switchProvider moves chat traffic between the local backend and remote
+// OpenAI-compatible provider profiles (P1). name "local"/"" = local backend.
+func (a *App) switchProvider(name string) {
+	if name == "" || name == "local" {
+		client, _, err := provider.EnsureBackend(a.cfg.OllamaURL, a.cfg.APIStyle, a.cfg.Discovery, 6*time.Second)
+		if err != nil {
+			a.toastf("local backend: %v", err)
+			return
+		}
+		a.client = client
+		a.activeProvider = ""
+		a.cfg.ActiveProvider = ""
+		_ = a.cfg.Save()
+		a.toastf("provider → local (%s)", a.modelLabel())
+		return
+	}
+	p, ok := a.cfg.Providers[name]
+	if !ok {
+		a.toastf("unknown provider: %s", name)
+		return
+	}
+	a.client = provider.NewWithKey(p.URL, "openai", p.ResolvedKey())
+	a.activeProvider = name
+	a.cfg.ActiveProvider = name
+	if p.Model != "" {
+		a.sess.Model = p.Model
+	}
+	_ = a.cfg.Save()
+	a.connOK = true
+	a.refreshContent()
+	a.toastf("provider → %s (cloud: file contents will be uploaded)", name)
+}
+
+// openProviderPanel lists the local backend plus every configured profile.
+func (a *App) openProviderPanel() {
+	items := []item{{title: "local", desc: fmt.Sprintf("%s · %s", a.modelLabel(), a.cfg.OllamaURL), data: "local"}}
+	names := make([]string, 0, len(a.cfg.Providers))
+	for n := range a.cfg.Providers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		p := a.cfg.Providers[n]
+		items = append(items, item{title: n, desc: p.URL + " · " + p.Model, data: n})
+	}
+	a.panelLst = newListPanel(panelProvider, "provider (enter switch · esc close)", items)
+	a.panel = panelProvider
 }
 
 // openFilePanel shows the fuzzy workspace file picker for @ references.
 func (a *App) openFilePanel() {
-	files := workspaceFiles(a.workDir, 500)
+	files := WorkspaceFiles(a.workDir, 500)
 	var items []item
 	for _, f := range files {
 		items = append(items, item{title: f, desc: "", data: f})
@@ -787,7 +849,7 @@ func (a *App) chatMessages() []ollama.Message {
 			if len(m.Refs) > 0 {
 				var blocks []string
 				for _, r := range m.Refs {
-					blocks = append(blocks, refContextBlock(r))
+					blocks = append(blocks, RefContextBlock(r))
 				}
 				content = content + "\n\n" + strings.Join(blocks, "\n\n")
 			}

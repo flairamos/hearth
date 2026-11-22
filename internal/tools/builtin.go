@@ -12,6 +12,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 const (
@@ -533,7 +536,11 @@ func nearestLine(src, s string) string {
 // bash-compatible aliases like cat/ls/rm), then cmd. bash.exe is NOT
 // auto-detected on Windows because System32 ships a WSL launcher with the
 // same name whose paths don't translate — opt in via agent.shell="bash".
+//
+// The PowerShell paths force UTF-8 console output: CJK error messages come
+// back in the system codepage (GBK) otherwise and render as mojibake.
 func shellCommand(pref, cmdStr string) (string, []string) {
+	const psUTF8 = "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
 	switch pref {
 	case "bash":
 		if runtime.GOOS == "windows" {
@@ -543,16 +550,32 @@ func shellCommand(pref, cmdStr string) (string, []string) {
 	case "cmd":
 		return "cmd", []string{"/C", cmdStr}
 	case "powershell":
-		return powershellName(), []string{"-NoProfile", "-NonInteractive", "-Command", cmdStr}
+		return powershellName(), []string{"-NoProfile", "-NonInteractive", "-Command", psUTF8 + cmdStr}
 	}
 	// auto
 	if runtime.GOOS == "windows" {
 		if _, err := exec.LookPath("powershell.exe"); err == nil {
-			return "powershell.exe", []string{"-NoProfile", "-NonInteractive", "-Command", cmdStr}
+			return "powershell.exe", []string{"-NoProfile", "-NonInteractive", "-Command", psUTF8 + cmdStr}
 		}
 		return "cmd", []string{"/C", cmdStr}
 	}
 	return "bash", []string{"-c", cmdStr}
+}
+
+// decodeConsoleOutput rescues non-UTF-8 console output on Windows: tools
+// and cmd.exe emit the system codepage (GBK on zh-CN systems), which turns
+// CJK text into mojibake when read as UTF-8.
+func decodeConsoleOutput(res string) string {
+	if utf8.ValidString(res) {
+		return res
+	}
+	if runtime.GOOS != "windows" {
+		return res
+	}
+	if decoded, err := simplifiedchinese.GBK.NewDecoder().String(res); err == nil && utf8.ValidString(decoded) {
+		return decoded
+	}
+	return res
 }
 
 func powershellName() string {
@@ -597,7 +620,7 @@ func bashTool() Tool {
 			cmd.Stdout = &out
 			cmd.Stderr = &out
 			runErr := cmd.Run()
-			res := out.String()
+			res := decodeConsoleOutput(out.String())
 			exit := 0
 			if runErr != nil {
 				if ee, ok := runErr.(*exec.ExitError); ok {

@@ -19,6 +19,7 @@ const (
 	panelSession
 	panelPalette
 	panelFile
+	panelProvider
 	panelHelp
 	panelApproval
 	panelConfirm

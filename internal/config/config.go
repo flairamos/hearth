@@ -49,6 +49,24 @@ type SearchConfig struct {
 	MaxResults int    `json:"max_results"`
 }
 
+// ProviderProfile is a remote OpenAI-compatible service profile (GLM,
+// DeepSeek, DashScope/Qwen, Volcengine Ark ... all speak the same protocol).
+type ProviderProfile struct {
+	URL    string `json:"url"`             // base url, /v1 appended if missing
+	APIKey string `json:"api_key"`         // secret, or "$ENV_VAR" reference
+	Model  string `json:"model,omitempty"` // default model for this provider
+}
+
+// ResolvedKey expands a "$ENV_VAR" reference in the api_key field, keeping
+// secrets out of the config file.
+func (p ProviderProfile) ResolvedKey() string {
+	k := strings.TrimSpace(p.APIKey)
+	if strings.HasPrefix(k, "$") {
+		return os.Getenv(k[1:])
+	}
+	return k
+}
+
 // CustomCommand is a user-defined prompt-template slash command.
 type CustomCommand struct {
 	Desc   string `json:"description"`
@@ -63,21 +81,23 @@ type UIConfig struct {
 
 // Config is the on-disk configuration.
 type Config struct {
-	OllamaURL    string                   `json:"ollama_url"`
-	APIStyle     string                   `json:"api_style"` // auto | ollama | openai
-	Discovery    bool                     `json:"discovery"` // auto-detect local backends when the configured URL is dead
-	DefaultModel string                   `json:"default_model"`
-	Theme        string                   `json:"theme"`
-	Generation   GenerationConfig         `json:"generation"`
-	Context      ContextConfig            `json:"context"`
-	Keymap       map[string]string        `json:"keymap"`
-	SystemPrompt string                   `json:"system_prompt"`
-	AutoTitle    bool                     `json:"auto_title"`
-	Agent        AgentConfig              `json:"agent"`
-	Search       SearchConfig             `json:"search"`
-	Commands     map[string]CustomCommand `json:"commands"`
-	Favorites    []string                 `json:"model_favorites"`
-	UI           UIConfig                 `json:"ui"`
+	OllamaURL      string                     `json:"ollama_url"`
+	APIStyle       string                     `json:"api_style"` // auto | ollama | openai
+	Discovery      bool                       `json:"discovery"` // auto-detect local backends when the configured URL is dead
+	DefaultModel   string                     `json:"default_model"`
+	Theme          string                     `json:"theme"`
+	Generation     GenerationConfig           `json:"generation"`
+	Context        ContextConfig              `json:"context"`
+	Keymap         map[string]string          `json:"keymap"`
+	SystemPrompt   string                     `json:"system_prompt"`
+	AutoTitle      bool                       `json:"auto_title"`
+	Agent          AgentConfig                `json:"agent"`
+	Search         SearchConfig               `json:"search"`
+	Providers      map[string]ProviderProfile `json:"providers,omitempty"`
+	ActiveProvider string                     `json:"active_provider,omitempty"` // "" = local backend
+	Commands       map[string]CustomCommand   `json:"commands"`
+	Favorites      []string                   `json:"model_favorites"`
+	UI             UIConfig                   `json:"ui"`
 }
 
 // Defaults returns the built-in default configuration.
@@ -110,10 +130,12 @@ func Defaults() *Config {
 			Shell:         "auto",
 			Memory:        true,
 		},
-		Discovery: true,
-		Search:    SearchConfig{Engine: "bing", MaxResults: 5},
-		Commands:  map[string]CustomCommand{},
-		UI:        UIConfig{Sidebar: true},
+		Discovery:      true,
+		Search:         SearchConfig{Engine: "bing", MaxResults: 5},
+		Providers:      map[string]ProviderProfile{},
+		ActiveProvider: "",
+		Commands:       map[string]CustomCommand{},
+		UI:             UIConfig{Sidebar: true},
 	}
 }
 
@@ -251,6 +273,19 @@ func (c *Config) normalize() {
 	case "auto", "ollama", "openai":
 	default:
 		c.APIStyle = "auto"
+	}
+	for name, p := range c.Providers {
+		p.URL = strings.TrimRight(strings.TrimSpace(p.URL), "/")
+		if p.URL == "" || name == "" {
+			delete(c.Providers, name)
+			continue
+		}
+		c.Providers[name] = p
+	}
+	if c.ActiveProvider != "" && c.ActiveProvider != "local" {
+		if _, ok := c.Providers[c.ActiveProvider]; !ok {
+			c.ActiveProvider = ""
+		}
 	}
 	switch c.Theme {
 	case "dark", "light", "dracula":

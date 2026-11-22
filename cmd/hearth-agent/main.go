@@ -104,6 +104,7 @@ func runAgentCmd(args []string) int {
 	showThink := fs.Bool("show-thinking", false, "stream thinking to stderr")
 	url := fs.String("url", "", "backend base url override")
 	style := fs.String("api-style", "", "api style override: ollama | openai")
+	provider := fs.String("provider", "", "config provider profile (remote OpenAI-compatible)")
 	_ = fs.Parse(args)
 
 	rest := fs.Args()
@@ -115,6 +116,7 @@ func runAgentCmd(args []string) int {
 	return cli.RunAgent(cli.AgentOptions{
 		Task:      strings.Join(rest, " "),
 		Model:     *model,
+		Provider:  *provider,
 		WorkDir:   *workdir,
 		Perms:     *perm,
 		Yolo:      *yolo,

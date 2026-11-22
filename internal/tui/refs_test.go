@@ -16,7 +16,7 @@ func TestCollectRefs(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "sub", "b.go"), []byte("package sub\n"), 0o644)
 
 	// whole file
-	refs, missing := collectRefs("look at @a.txt please", dir)
+	refs, missing := CollectRefs("look at @a.txt please", dir)
 	if len(refs) != 1 || len(missing) != 0 {
 		t.Fatalf("refs=%d missing=%v", len(refs), missing)
 	}
@@ -25,7 +25,7 @@ func TestCollectRefs(t *testing.T) {
 	}
 
 	// line range
-	refs, missing = collectRefs("show @a.txt#1-2 ... hmm @a.txt#2-3", dir)
+	refs, missing = CollectRefs("show @a.txt#1-2 ... hmm @a.txt#2-3", dir)
 	if len(refs) != 2 || len(missing) != 0 {
 		t.Fatalf("refs=%d missing=%v", len(refs), missing)
 	}
@@ -34,25 +34,25 @@ func TestCollectRefs(t *testing.T) {
 	}
 
 	// out-of-range line numbers surface as missing
-	refs, missing = collectRefs("@a.txt#121-135", dir)
+	refs, missing = CollectRefs("@a.txt#121-135", dir)
 	if len(refs) != 0 || len(missing) != 1 {
 		t.Errorf("out-of-range must be reported: refs=%d missing=%v", len(refs), missing)
 	}
 
 	// L prefix variant
-	refs, _ = collectRefs("@a.txt#L1-2", dir)
+	refs, _ = CollectRefs("@a.txt#L1-2", dir)
 	if len(refs) != 1 || refs[0].Content != "l1\nl2" {
 		t.Errorf("L-prefix: %+v", refs)
 	}
 
 	// missing file reported
-	refs, missing = collectRefs("read @nope.txt and @a.txt", dir)
+	refs, missing = CollectRefs("read @nope.txt and @a.txt", dir)
 	if len(refs) != 1 || len(missing) != 1 || missing[0] != "nope.txt" {
 		t.Fatalf("missing detection: refs=%d missing=%v", len(refs), missing)
 	}
 
 	// no refs → nil
-	if refs, _ = collectRefs("plain text without attachments", dir); refs != nil {
+	if refs, _ = CollectRefs("plain text without attachments", dir); refs != nil {
 		t.Error("plain text must produce no refs")
 	}
 }
@@ -65,7 +65,7 @@ func TestWorkspaceFiles(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "README.md"), []byte("x"), 0o644)
 	_ = os.WriteFile(filepath.Join(dir, ".git", "config"), []byte("x"), 0o644)
 
-	files := workspaceFiles(dir, 500)
+	files := WorkspaceFiles(dir, 500)
 	joined := strings.Join(files, ",")
 	if !strings.Contains(joined, "src/main.go") || !strings.Contains(joined, "README.md") {
 		t.Errorf("picker missed files: %v", files)
@@ -77,7 +77,7 @@ func TestWorkspaceFiles(t *testing.T) {
 
 func TestRefContextBlock(t *testing.T) {
 	r := core.FileRef{Path: "a.txt", Start: 2, End: 3, Content: "l2\nl3"}
-	block := refContextBlock(r)
+	block := RefContextBlock(r)
 	if !strings.Contains(block, "[file: a.txt#L2-3]") || !strings.Contains(block, "l2") {
 		t.Errorf("block: %q", block)
 	}

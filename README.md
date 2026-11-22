@@ -8,7 +8,7 @@ Hearth 是运行在终端里的本地大模型工作台：交互式对话 + 无�
 
 | 二进制 | 定位 | 大小 |
 |---|---|---|
-| `hearth` | 交互式 TUI：对话、会话、`@`引用、agent 模式（审批 UI）、多模态、性能仪表 | ~21MB |
+| `hearth` | 交互式 TUI + **浏览器 GUI**（`--web`）：对话、会话、`@`引用、agent 模式（审批 UI）、多模态、性能仪表 | ~21MB |
 | `hearth-agent` | 无头自动化：`agent` / `ask` / `models`，脚本与 CI 友好，**零 TUI 依赖** | ~11MB |
 
 ## 界面预览
@@ -23,6 +23,10 @@ Hearth 是运行在终端里的本地大模型工作台：交互式对话 + 无�
 | **多模态**（/img 图片理解） | **内容检索**（grep 精确到行） |
 | ![配置编辑](docs/config.png) | ![文件任务](docs/filetask.png) |
 | **配置**（/config 热重载） | **文件任务**（agent 读写实测） |
+| ![浏览器 GUI](docs/web_home.png) | ![Web 斜杠命令](docs/web_command.png) |
+| **浏览器 GUI**（hearth --web · localhost:8787） | **Web 斜杠命令**（↑↓ 导航 · Enter 执行） |
+| ![Web @ 引用](docs/web_importfile.png) | |
+| **Web @ 文件引用**（选择器补全 · #L 行号） | |
 
 ## 双 API 风格（多后端自动识别）
 
@@ -93,6 +97,7 @@ sudo cp dist/0.4.1/hearth{,-agent}_linux_amd64 /usr/local/bin/
 ```powershell
 ollama pull qwen3.5:4b
 hearth                          # 交互式 TUI
+hearth --web                    # 浏览器 GUI(localhost:8787,自动开浏览器)
 hearth-agent agent "统计行数" --yolo     # 无头自动化
 hearth-agent ask "一句话解释 TCP"        # 单问
 ```

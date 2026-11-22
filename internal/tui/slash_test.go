@@ -21,6 +21,7 @@ import (
 // newSlashApp builds a minimal App for slash-popup key handling tests.
 func newSlashApp(t *testing.T) *App {
 	t.Helper()
+	t.Setenv("HEARTH_CONFIG", filepath.Join(t.TempDir(), "config.json")) // cfg.Save() stays out of the user's real config
 	cfg := config.Defaults()
 	cfg.Agent.Memory = false
 	st, err := store.New(t.TempDir())
@@ -118,7 +119,8 @@ func TestSlashPopupScrollWindow(t *testing.T) {
 	if strings.Contains(out, "> /model") {
 		t.Fatal("first row should have scrolled out of the window")
 	}
-	if !strings.Contains(out, fmt.Sprintf("%d/%d", idx+1, 19)) {
+	total := len(a.commandList())
+	if !strings.Contains(out, fmt.Sprintf("%d/%d", idx+1, total)) {
 		t.Fatalf("position indicator missing: %q", out)
 	}
 }
@@ -337,5 +339,57 @@ func TestFileRefSeededAt(t *testing.T) {
 	}
 	if strings.Count(got, "@") != 1 {
 		t.Fatalf("duplicated @: %q", got)
+	}
+}
+
+func TestProviderSwitch(t *testing.T) {
+	a := newSlashApp(t)
+	a.cfg.Providers = map[string]config.ProviderProfile{
+		"glm": {URL: "https://open.bigmodel.cn/api/paas/v4", APIKey: "$GLM_KEY", Model: "glm-4.6"},
+	}
+
+	a.switchProvider("nope") // unknown — no state change
+	if a.activeProvider != "" || a.cfg.ActiveProvider != "" {
+		t.Fatalf("unknown provider changed state: %q / %q", a.activeProvider, a.cfg.ActiveProvider)
+	}
+
+	a.switchProvider("glm")
+	if a.activeProvider != "glm" || a.cfg.ActiveProvider != "glm" {
+		t.Fatalf("switch not recorded: %q / %q", a.activeProvider, a.cfg.ActiveProvider)
+	}
+	if a.sess.Model != "glm-4.6" {
+		t.Fatalf("profile model not applied: %q", a.sess.Model)
+	}
+	if !a.connOK {
+		t.Fatal("connOK not set after cloud switch")
+	}
+
+	// switch back to local: with an unreachable backend and discovery off,
+	// EnsureBackend fails → the cloud client must stay untouched
+	a.cfg.OllamaURL = "http://127.0.0.1:1"
+	a.cfg.Discovery = false
+	a.switchProvider("local")
+	if a.activeProvider != "glm" {
+		t.Fatalf("failed local switch must not change provider: %q", a.activeProvider)
+	}
+}
+
+func TestProviderPanelListsSorted(t *testing.T) {
+	a := newSlashApp(t)
+	a.cfg.Providers = map[string]config.ProviderProfile{
+		"deepseek": {URL: "https://api.deepseek.com", Model: "deepseek-chat"},
+		"glm":      {URL: "https://open.bigmodel.cn/api/paas/v4", Model: "glm-4.6"},
+	}
+	a.openProviderPanel()
+	if a.panel != panelProvider || a.panelLst == nil {
+		t.Fatal("provider panel did not open")
+	}
+	titles := []string{}
+	for _, it := range a.panelLst.items {
+		titles = append(titles, it.title)
+	}
+	want := []string{"local", "deepseek", "glm"}
+	if fmt.Sprint(titles) != fmt.Sprint(want) {
+		t.Fatalf("items = %v, want %v (local first, then sorted)", titles, want)
 	}
 }
